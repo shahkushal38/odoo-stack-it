@@ -350,6 +350,178 @@ def get_question(qid):
     return jsonify(q)
 
 
+@app.route("/admin/questions/<qid>", methods=["GET"])
+def get_admin_question(qid):
+    try:
+        q = questions_col.find_one({"_id": ObjectId(qid)})
+        if not q:
+            return jsonify({"error": "Question not found"}), 404
+
+        q_title = q["title"]
+        q_description = q["description"]
+
+        q["_id"] = str(q["_id"])
+        q["user_id"] = str(q["user_id"])
+
+        all_answers_content = []
+        answer_ids = []  # Store answer IDs for mapping
+        # Fetch answers from the separate collection
+        answers = list(answers_col.find({"question_id": str(q["_id"])}))
+        for a in answers:
+            a["_id"] = str(a["_id"])
+            a["user_id"] = str(a["user_id"])
+            a["question_id"] = str(a["question_id"])
+            all_answers_content.append(a["content"])
+            answer_ids.append(a["_id"])  # Store the answer ID
+
+            # Aggregate upvotes and downvotes for this answer from the votes collection
+            upvotes = votes_col.count_documents(
+                {"answer_id": a["_id"], "vote_type": "up"}
+            )
+            downvotes = votes_col.count_documents(
+                {"answer_id": a["_id"], "vote_type": "down"}
+            )
+            a["votes"] = {"up": upvotes, "down": downvotes}
+        
+        q["answers"] = answers
+
+        # LLM Content Moderation
+        moderation_results = []
+
+        # Prepare content for moderation
+        content_to_moderate = [
+            {"type": "question_title", "content": q_title},
+            {"type": "question_description", "content": q_description},
+        ]
+
+        # Add answers to moderation list
+        for i, answer_content in enumerate(all_answers_content):
+            content_to_moderate.append(
+                {"type": f"answer_{i+1}", "content": answer_content}
+            )
+
+        # Create moderation prompt
+        moderation_prompt = """
+        You are a content moderator for a Q&A platform. Analyze the following content and determine if it's appropriate and relevant.
+
+        For each piece of content, check for:
+        1. Spam or irrelevant content
+        2. Hate speech or discriminatory language
+        3. Offensive or derogatory language
+        4. Inappropriate or NSFW content
+        5. Off-topic or out-of-scope content
+        6. Personal attacks or harassment
+
+        Content to moderate:
+        """
+
+        for item in content_to_moderate:
+            moderation_prompt += f"\n{item['type']}: {item['content']}\n"
+
+        moderation_prompt += """
+        
+        For each piece of content, respond with a JSON object containing:
+        - "relevant": boolean (true if content is appropriate and relevant, false if it violates guidelines)
+        - "reason": string (brief explanation of why the content is relevant or why it was flagged)
+
+        Return an array of JSON objects, one for each piece of content in the same order.
+        Example format:
+        [
+            {"relevant": true, "reason": "Content is appropriate and relevant to the topic"},
+            {"relevant": false, "reason": "Contains inappropriate language"}
+        ]
+        """
+
+        # Call LLM for moderation
+        try:
+            llm_response = llm.invoke(moderation_prompt)
+            response_content = (
+                llm_response.content
+                if hasattr(llm_response, "content")
+                else str(llm_response)
+            )
+
+            # Try to parse JSON response
+            import json
+
+            try:
+                # Clean the response to extract JSON
+                response_text = str(response_content).strip()
+                if response_text.startswith("```json"):
+                    response_text = response_text[7:]
+                if response_text.endswith("```"):
+                    response_text = response_text[:-3]
+
+                moderation_results = json.loads(response_text.strip())
+
+                print(moderation_results)
+                print(content_to_moderate)
+
+                # Ensure we have the right number of results
+                if len(moderation_results) != len(content_to_moderate) - 1:
+                    # If parsing failed or wrong number, create default results
+                    moderation_results = []
+                    for item in content_to_moderate:
+                        moderation_results.append(
+                            {
+                                "relevant": True,
+                                "reason": "Content moderation unavailable",
+                            }
+                        )
+
+            except json.JSONDecodeError:
+                # If JSON parsing fails, create default results
+                moderation_results = []
+                for item in content_to_moderate:
+                    moderation_results.append(
+                        {
+                            "relevant": True,
+                            "reason": "Content moderation parsing failed",
+                        }
+                    )
+
+        except Exception as e:
+            # If LLM call fails, create default results
+            moderation_results = []
+            for item in content_to_moderate:
+                moderation_results.append(
+                    {"relevant": True, "reason": f"Content moderation error: {str(e)}"}
+                )
+
+        # Map moderation results to answer IDs
+        answer_moderation = []
+        if len(moderation_results) > 1:
+            for i, result in enumerate(moderation_results[1:]):  # Skip question, start from answers
+                if i < len(answer_ids):
+                    answer_moderation.append({
+                        "answer_id": answer_ids[i],
+                        "relevant": result.get("relevant", True),
+                        "reason": result.get("reason", "Not moderated")
+                    })
+                else:
+                    # Fallback if we have more results than answers
+                    answer_moderation.append({
+                        "answer_id": f"unknown_{i}",
+                        "relevant": result.get("relevant", True),
+                        "reason": result.get("reason", "Not moderated")
+                    })
+
+        # Add moderation results to response
+        q["moderation"] = {
+            "question": (
+                moderation_results[0]
+                if len(moderation_results) > 0
+                else {"relevant": True, "reason": "Not moderated"}
+            ),
+            "answers": answer_moderation,
+        }
+
+        return jsonify(q)
+
+    except Exception as e:
+        return jsonify({"error": f"Error processing admin question: {str(e)}"}), 500
+
+
 # ----------------------- ANSWERS -----------------------
 
 
