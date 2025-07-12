@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import './App.css'
 import Navbar from './components/Navbar/Navbar'
 import Home from './pages/Home/Home'
-import AskQuestion from './pages/AskQuestion'
+import AskQuestion from './pages/AskQuestion/AskQuestion'
 import QuestionDetail from './pages/QuestionDetail'
 import Notifications from './pages/Notifications'
 
