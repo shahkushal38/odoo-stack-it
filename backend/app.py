@@ -285,42 +285,14 @@ def get_questions():
     for q in questions:
         # Count answers in the separate answers collection
         num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
-        result.append(
-            {
-                "_id": str(q["_id"]),
-                "title": q.get("title", ""),
-                "description": q.get("description", ""),
-                "tags": q.get("tags", []),
-                "num_answers": num_answers,
-                "created_at": q.get("created_at"),
-                "user_id": str(q.get("user_id", "")),
-            }
-        )
-
-    # Sort by num_answers if requested (after fetching since it's computed)
-    if sort_by == "num_answers":
-        result.sort(key=lambda x: x["num_answers"], reverse=True)
-
-    # Calculate pagination metadata
-    total_pages = (total_questions + limit - 1) // limit  # Ceiling division
-    has_next = page < total_pages
-    has_prev = page > 1
-
-    response_data = {
-        "questions": result,
-        "pagination": {
-            "current_page": page,
-            "total_pages": total_pages,
-            "total_questions": total_questions,
-            "questions_per_page": limit,
-            "has_next": has_next,
-            "has_prev": has_prev,
-            "next_page": page + 1 if has_next else None,
-            "prev_page": page - 1 if has_prev else None,
-        },
-    }
-
-    return jsonify(response_data)
+        result.append({
+            "_id": str(q["_id"]),
+            "title": q.get("title", ""),
+            "description": q.get("description", ""),
+            "tags": q.get("tags", []),
+            "num_answers": num_answers
+        })
+    return jsonify(result)
 
 
 @app.route("/questions/<qid>", methods=["GET"])
@@ -329,25 +301,236 @@ def get_question(qid):
     if not q:
         return jsonify({"error": "Question not found"}), 404
 
-    q["_id"] = str(q["_id"])
-    q["user_id"] = str(q["user_id"])
+    q['_id'] = str(q['_id'])
+    q['user_id'] = str(q['user_id'])
+
+    # Default: no user context
+    user_id = None
+    user_votes = {}
+
+    # Try to get JWT from Authorization header or cookie for both GET and POST
+    jwt_token = None
+    # 1. Try cookie
+    jwt_token = request.cookies.get("jwt_token")
+    # 2. Try Authorization header
+    if not jwt_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            jwt_token = auth_header.split(" ", 1)[1]
+
+    if jwt_token:
+        try:
+            payload = jwt.decode(jwt_token, app.config["SECRET_KEY"], algorithms=["HS256"])
+            user_id = payload.get("user_id")
+        except Exception:
+            user_id = None
 
     # Fetch answers from the separate collection
-    answers = list(answers_col.find({"question_id": str(q["_id"])}))
+    answers = list(answers_col.find({"question_id": str(q['_id'])}))
+    answer_ids = [str(a['_id']) for a in answers]
+
+    # If user is authenticated, get their votes for these answers only (not for the question itself)
+    user_upvoted = set()
+    user_downvoted = set()
+    if user_id:
+        user_votes_cursor = votes_col.find({"answer_id": {"$in": answer_ids}, "user_id": user_id})
+        for v in user_votes_cursor:
+            if v["vote_type"] == "up":
+                user_upvoted.add(v["answer_id"])
+            elif v["vote_type"] == "down":
+                user_downvoted.add(v["answer_id"])
+
     for a in answers:
         a["_id"] = str(a["_id"])
         a["user_id"] = str(a["user_id"])
         a["question_id"] = str(a["question_id"])
 
         # Aggregate upvotes and downvotes for this answer from the votes collection
-        upvotes = votes_col.count_documents({"answer_id": a["_id"], "vote_type": "up"})
-        downvotes = votes_col.count_documents(
-            {"answer_id": a["_id"], "vote_type": "down"}
-        )
-        a["votes"] = {"up": upvotes, "down": downvotes}
+        upvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "up"})
+        downvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "down"})
+        a['votes'] = {"up": upvotes, "down": downvotes}
+        a['user_upvoted'] = False
+        a['user_downvoted']= False
+
+        # Mark if this user has upvoted/downvoted this answer
+        if user_id:
+            a['user_upvoted'] = a['_id'] in user_upvoted
+            a['user_downvoted'] = a['_id'] in user_downvoted
 
     q["answers"] = answers
     return jsonify(q)
+
+
+@app.route("/admin/questions/<qid>", methods=["GET"])
+def get_admin_question(qid):
+    try:
+        q = questions_col.find_one({"_id": ObjectId(qid)})
+        if not q:
+            return jsonify({"error": "Question not found"}), 404
+
+        q_title = q["title"]
+        q_description = q["description"]
+
+        q["_id"] = str(q["_id"])
+        q["user_id"] = str(q["user_id"])
+
+        all_answers_content = []
+        answer_ids = []  # Store answer IDs for mapping
+        # Fetch answers from the separate collection
+        answers = list(answers_col.find({"question_id": str(q["_id"])}))
+        for a in answers:
+            a["_id"] = str(a["_id"])
+            a["user_id"] = str(a["user_id"])
+            a["question_id"] = str(a["question_id"])
+            all_answers_content.append(a["content"])
+            answer_ids.append(a["_id"])  # Store the answer ID
+
+            # Aggregate upvotes and downvotes for this answer from the votes collection
+            upvotes = votes_col.count_documents(
+                {"answer_id": a["_id"], "vote_type": "up"}
+            )
+            downvotes = votes_col.count_documents(
+                {"answer_id": a["_id"], "vote_type": "down"}
+            )
+            a["votes"] = {"up": upvotes, "down": downvotes}
+        
+        q["answers"] = answers
+
+        # LLM Content Moderation
+        moderation_results = []
+
+        # Prepare content for moderation
+        content_to_moderate = [
+            {"type": "question_title", "content": q_title},
+            {"type": "question_description", "content": q_description},
+        ]
+
+        # Add answers to moderation list
+        for i, answer_content in enumerate(all_answers_content):
+            content_to_moderate.append(
+                {"type": f"answer_{i+1}", "content": answer_content}
+            )
+
+        # Create moderation prompt
+        moderation_prompt = """
+        You are a content moderator for a Q&A platform. Analyze the following content and determine if it's appropriate and relevant.
+
+        For each piece of content, check for:
+        1. Spam or irrelevant content
+        2. Hate speech or discriminatory language
+        3. Offensive or derogatory language
+        4. Inappropriate or NSFW content
+        5. Off-topic or out-of-scope content
+        6. Personal attacks or harassment
+
+        Content to moderate:
+        """
+
+        for item in content_to_moderate:
+            moderation_prompt += f"\n{item['type']}: {item['content']}\n"
+
+        moderation_prompt += """
+        
+        For each piece of content, respond with a JSON object containing:
+        - "relevant": boolean (true if content is appropriate and relevant, false if it violates guidelines)
+        - "reason": string (brief explanation of why the content is relevant or why it was flagged)
+
+        Return an array of JSON objects, one for each piece of content in the same order.
+        Example format:
+        [
+            {"relevant": true, "reason": "Content is appropriate and relevant to the topic"},
+            {"relevant": false, "reason": "Contains inappropriate language"}
+        ]
+        """
+
+        # Call LLM for moderation
+        try:
+            llm_response = llm.invoke(moderation_prompt)
+            response_content = (
+                llm_response.content
+                if hasattr(llm_response, "content")
+                else str(llm_response)
+            )
+
+            # Try to parse JSON response
+            import json
+
+            try:
+                # Clean the response to extract JSON
+                response_text = str(response_content).strip()
+                if response_text.startswith("```json"):
+                    response_text = response_text[7:]
+                if response_text.endswith("```"):
+                    response_text = response_text[:-3]
+
+                moderation_results = json.loads(response_text.strip())
+
+                print(moderation_results)
+                print(content_to_moderate)
+
+                # Ensure we have the right number of results
+                if len(moderation_results) != len(content_to_moderate) - 1:
+                    # If parsing failed or wrong number, create default results
+                    moderation_results = []
+                    for item in content_to_moderate:
+                        moderation_results.append(
+                            {
+                                "relevant": True,
+                                "reason": "Content moderation unavailable",
+                            }
+                        )
+
+            except json.JSONDecodeError:
+                # If JSON parsing fails, create default results
+                moderation_results = []
+                for item in content_to_moderate:
+                    moderation_results.append(
+                        {
+                            "relevant": True,
+                            "reason": "Content moderation parsing failed",
+                        }
+                    )
+
+        except Exception as e:
+            # If LLM call fails, create default results
+            moderation_results = []
+            for item in content_to_moderate:
+                moderation_results.append(
+                    {"relevant": True, "reason": f"Content moderation error: {str(e)}"}
+                )
+
+        # Map moderation results to answer IDs
+        answer_moderation = []
+        if len(moderation_results) > 1:
+            for i, result in enumerate(moderation_results[1:]):  # Skip question, start from answers
+                if i < len(answer_ids):
+                    answer_moderation.append({
+                        "answer_id": answer_ids[i],
+                        "relevant": result.get("relevant", True),
+                        "reason": result.get("reason", "Not moderated")
+                    })
+                else:
+                    # Fallback if we have more results than answers
+                    answer_moderation.append({
+                        "answer_id": f"unknown_{i}",
+                        "relevant": result.get("relevant", True),
+                        "reason": result.get("reason", "Not moderated")
+                    })
+
+        # Add moderation results to response
+        q["moderation"] = {
+            "question": (
+                moderation_results[0]
+                if len(moderation_results) > 0
+                else {"relevant": True, "reason": "Not moderated"}
+            ),
+            "answers": answer_moderation,
+        }
+
+        return jsonify(q)
+
+    except Exception as e:
+        return jsonify({"error": f"Error processing admin question: {str(e)}"}), 500
 
 
 # ----------------------- ANSWERS -----------------------
