@@ -6,6 +6,7 @@
   background: white;
   box-shadow: 0 2px 12px var(--shadow-light);
   border-bottom: 1px solid var(--border-color);
+  border-radius: 12px;
 }
 .navbar__logo {
   font-size: 2rem;
