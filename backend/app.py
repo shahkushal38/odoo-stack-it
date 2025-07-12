@@ -32,7 +32,14 @@ db = client.get_database("StackIt")
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        # Try to get token from cookie first, then from Authorization header
         token = request.cookies.get("jwt_token")
+
+        if not token:
+            # Try to get from Authorization header
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
 
         if not token:
             return jsonify({"message": "Token is missing!"}), 401
