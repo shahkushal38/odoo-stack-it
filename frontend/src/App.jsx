@@ -1,34 +1,33 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import React, { useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import './App.css'
+import Navbar from './components/Navbar/Navbar'
+import Home from './pages/Home/Home'
+import AskQuestion from './pages/AskQuestion/AskQuestion'
+import QuestionDetail from './pages/QuestionDetail'
+import Notifications from './pages/Notifications'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const notificationCount = 3 // Dummy count
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <Router>
+      <Navbar
+        onNotificationsClick={() => setShowNotifications(!showNotifications)}
+        notificationCount={notificationCount}
+      />
+      {showNotifications && <Notifications />}
+      <div className="app__container">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/ask" element={<AskQuestion />} />
+        </Routes>
+        <Link to="/ask" className="app__ask-btn">
+          Ask Question
+        </Link>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </Router>
   )
 }
 
