@@ -125,7 +125,7 @@ def registerUser():
 def post_question():
     data = request.get_json()
     question = {
-        "user_id": ObjectId(data['user_id']),
+        "user_id": data['user_id'],  # UUID string, do not wrap with ObjectId
         "title": data['title'],
         "description": data['description'],
         "tags": data.get('tags', []),  # list of tag names like ["mongodb", "flask"]
@@ -140,16 +140,18 @@ def post_question():
 @app.route('/questions', methods=['GET'])
 def get_questions():
     questions = list(questions_col.find())
+    result = []
     for q in questions:
-        q['_id'] = str(q['_id'])
-        q['user_id'] = str(q['user_id'])
-        q['answers'] = [
-            {
-                **a,
-                "user_id": str(a["user_id"])
-            } for a in q.get('answers', [])
-        ]
-    return jsonify(questions)
+        # Count answers in the separate answers collection
+        num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
+        result.append({
+            "_id": str(q["_id"]),
+            "title": q.get("title", ""),
+            "description": q.get("description", ""),
+            "tags": q.get("tags", []),
+            "num_answers": num_answers
+        })
+    return jsonify(result)
 
 
 @app.route('/questions/<qid>', methods=['GET'])
@@ -160,12 +162,20 @@ def get_question(qid):
 
     q['_id'] = str(q['_id'])
     q['user_id'] = str(q['user_id'])
-    q['answers'] = [
-        {
-            **a,
-            "user_id": str(a["user_id"])
-        } for a in q.get('answers', [])
-    ]
+
+    # Fetch answers from the separate collection
+    answers = list(answers_col.find({"question_id": str(q['_id'])}))
+    for a in answers:
+        a['_id'] = str(a['_id'])
+        a['user_id'] = str(a['user_id'])
+        a['question_id'] = str(a['question_id'])
+
+        # Aggregate upvotes and downvotes for this answer from the votes collection
+        upvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "up"})
+        downvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "down"})
+        a['votes'] = {"up": upvotes, "down": downvotes}
+
+    q['answers'] = answers
     return jsonify(q)
 
 
@@ -176,24 +186,22 @@ def get_question(qid):
 def add_answer(question_id):
     data = request.json
     answer = {
-        "user_id": ObjectId(data['user_id']),
+        "question_id": question_id,
+        "user_id": data['user_id'],
         "content": data['content'],
         "created_at": datetime.utcnow(),
         "votes": {
             "up": 0,
             "down": 0
         },
-        "voters": []  # Optional: [{ user_id, vote_type }]
+        "voters": []
     }
-
-    result = questions_col.update_one(
+    answers_col.insert_one(answer)
+    # Optionally update the question's updated_at field
+    questions_col.update_one(
         {"_id": ObjectId(question_id)},
-        {"$push": {"answers": answer}, "$set": {"updated_at": datetime.utcnow()}}
+        {"$set": {"updated_at": datetime.utcnow()}}
     )
-
-    if result.modified_count == 0:
-        return jsonify({"error": "Question not found"}), 404
-
     return jsonify({"message": "Answer added"}), 201
 
 # ----------------------- VOTES -----------------------
@@ -202,16 +210,25 @@ def add_answer(question_id):
 @app.route("/answers/<aid>/vote", methods=["POST"])
 def vote_answer(aid):
     data = request.get_json()
-    user_id = oid(data["user_id"])
+    user_id = data["user_id"]
     vote_type = data["vote_type"]  # 'up' or 'down'
 
-    existing_vote = votes_col.find_one({"answer_id": oid(aid), "user_id": user_id})
-
+    # Check if user already voted for this answer
+    existing_vote = votes_col.find_one({"answer_id": aid, "user_id": user_id})
     if existing_vote:
         return jsonify({"error": "Already voted"}), 400
 
-    vote = {"answer_id": oid(aid), "user_id": user_id, "vote_type": vote_type}
+    # Record the vote
+    vote = {"answer_id": aid, "user_id": user_id, "vote_type": vote_type}
     votes_col.insert_one(vote)
+
+    # Update the answer's vote count
+    update_field = "votes.up" if vote_type == "up" else "votes.down"
+    answers_col.update_one(
+        {"_id": ObjectId(aid)},
+        {"$inc": {update_field: 1}}
+    )
+
     return jsonify({"message": "Vote recorded"}), 201
 
 
@@ -220,7 +237,7 @@ def vote_answer(aid):
 
 @app.route("/notifications/<user_id>", methods=["GET"])
 def get_notifications(user_id):
-    notes = list(notifications_col.find({"user_id": oid(user_id)}))
+    notes = list(notifications_col.find({"user_id": user_id}))
     for n in notes:
         n["_id"] = str(n["_id"])
     return jsonify(notes)
@@ -230,7 +247,7 @@ def get_notifications(user_id):
 def send_notification():
     data = request.get_json()
     notification = {
-        "user_id": oid(data["user_id"]),
+        "user_id": data["user_id"],
         "message": data["message"],
         "is_read": False,
         "created_at": datetime.utcnow(),
@@ -246,8 +263,8 @@ def send_notification():
 def post_comment():
     data = request.get_json()
     comment = {
-        "answer_id": oid(data["answer_id"]),
-        "user_id": oid(data["user_id"]),
+        "answer_id": data["answer_id"],
+        "user_id": data["user_id"],
         "content": data["content"],
         "created_at": datetime.utcnow(),
     }
@@ -257,7 +274,7 @@ def post_comment():
 
 @app.route("/answers/<aid>/comments", methods=["GET"])
 def get_comments(aid):
-    comms = list(comments_col.find({"answer_id": oid(aid)}))
+    comms = list(comments_col.find({"answer_id": aid}))
     for c in comms:
         c["_id"] = str(c["_id"])
         c["user_id"] = str(c["user_id"])
