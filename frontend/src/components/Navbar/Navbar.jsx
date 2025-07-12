@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState } from 'react';
 import './Navbar.css';
 import LoginModal from '../LoginModal/LoginModal';
 import RegistrationModal from '../RegistrationModal/RegistrationModal';
@@ -8,7 +8,8 @@ const Navbar = ({ onNotificationsClick, notificationCount }) => {
   const [showRegister, setShowRegister] = useState(false);
   const [user, setUser] = useState(() => {
     const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
+    const token = localStorage.getItem('token');
+    return stored && token ? JSON.parse(stored) : null;
   });
 
   const handleLoginSubmit = (data) => {
