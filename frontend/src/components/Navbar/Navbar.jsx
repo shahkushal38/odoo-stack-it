@@ -3,6 +3,7 @@ import './Navbar.css';
 import LoginModal from '../LoginModal/LoginModal';
 import RegistrationModal from '../RegistrationModal/RegistrationModal';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 const Navbar = ({ onNotificationsClick, notificationCount }) => {
   const [showLogin, setShowLogin] = useState(false);
@@ -50,7 +51,33 @@ const Navbar = ({ onNotificationsClick, notificationCount }) => {
           </>
         )}
         {user && (
-          <span className="navbar__greeting">Hi, {user.name}</span>
+          <>
+            <span className="navbar__greeting">Hi, {user.name}</span>
+            <button
+              className="navbar__logout"
+              onClick={async () => {
+                try {
+                  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+                  await fetch(`${backendUrl}/logout`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                  });
+                  localStorage.removeItem('user');
+                  localStorage.removeItem('token');
+                  localStorage.removeItem('role');
+                  setUser(null);
+                  toast.success('Logged out successfully!');
+                } catch (err) {
+                  toast.error('Logout failed.');
+                }
+              }}
+            >
+              Logout
+            </button>
+          </>
         )}
       </div>
       <LoginModal
