@@ -4,8 +4,7 @@ import './App.css'
 import Navbar from './components/Navbar/Navbar'
 import Home from './pages/Home/Home'
 import AskQuestion from './pages/AskQuestion/AskQuestion'
-import QuestionDetail from './pages/QuestionDetail'
-import Notifications from './pages/Notifications'
+import Notifications from './pages/Notifications/Notifications'
 
 function App() {
   const [showNotifications, setShowNotifications] = useState(false)
