@@ -285,14 +285,42 @@ def get_questions():
     for q in questions:
         # Count answers in the separate answers collection
         num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
-        result.append({
-            "_id": str(q["_id"]),
-            "title": q.get("title", ""),
-            "description": q.get("description", ""),
-            "tags": q.get("tags", []),
-            "num_answers": num_answers
-        })
-    return jsonify(result)
+        result.append(
+            {
+                "_id": str(q["_id"]),
+                "title": q.get("title", ""),
+                "description": q.get("description", ""),
+                "tags": q.get("tags", []),
+                "num_answers": num_answers,
+                "created_at": q.get("created_at"),
+                "user_id": str(q.get("user_id", "")),
+            }
+        )
+
+    # Sort by num_answers if requested (after fetching since it's computed)
+    if sort_by == "num_answers":
+        result.sort(key=lambda x: x["num_answers"], reverse=True)
+
+    # Calculate pagination metadata
+    total_pages = (total_questions + limit - 1) // limit  # Ceiling division
+    has_next = page < total_pages
+    has_prev = page > 1
+
+    response_data = {
+        "questions": result,
+        "pagination": {
+            "current_page": page,
+            "total_pages": total_pages,
+            "total_questions": total_questions,
+            "questions_per_page": limit,
+            "has_next": has_next,
+            "has_prev": has_prev,
+            "next_page": page + 1 if has_next else None,
+            "prev_page": page - 1 if has_prev else None,
+        },
+    }
+
+    return jsonify(response_data)
 
 
 @app.route("/questions/<qid>", methods=["GET"])
@@ -301,8 +329,8 @@ def get_question(qid):
     if not q:
         return jsonify({"error": "Question not found"}), 404
 
-    q['_id'] = str(q['_id'])
-    q['user_id'] = str(q['user_id'])
+    q["_id"] = str(q["_id"])
+    q["user_id"] = str(q["user_id"])
 
     # Default: no user context
     user_id = None
@@ -320,20 +348,24 @@ def get_question(qid):
 
     if jwt_token:
         try:
-            payload = jwt.decode(jwt_token, app.config["SECRET_KEY"], algorithms=["HS256"])
+            payload = jwt.decode(
+                jwt_token, app.config["SECRET_KEY"], algorithms=["HS256"]
+            )
             user_id = payload.get("user_id")
         except Exception:
             user_id = None
 
     # Fetch answers from the separate collection
-    answers = list(answers_col.find({"question_id": str(q['_id'])}))
-    answer_ids = [str(a['_id']) for a in answers]
+    answers = list(answers_col.find({"question_id": str(q["_id"])}))
+    answer_ids = [str(a["_id"]) for a in answers]
 
     # If user is authenticated, get their votes for these answers only (not for the question itself)
     user_upvoted = set()
     user_downvoted = set()
     if user_id:
-        user_votes_cursor = votes_col.find({"answer_id": {"$in": answer_ids}, "user_id": user_id})
+        user_votes_cursor = votes_col.find(
+            {"answer_id": {"$in": answer_ids}, "user_id": user_id}
+        )
         for v in user_votes_cursor:
             if v["vote_type"] == "up":
                 user_upvoted.add(v["answer_id"])
@@ -346,16 +378,18 @@ def get_question(qid):
         a["question_id"] = str(a["question_id"])
 
         # Aggregate upvotes and downvotes for this answer from the votes collection
-        upvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "up"})
-        downvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "down"})
-        a['votes'] = {"up": upvotes, "down": downvotes}
-        a['user_upvoted'] = False
-        a['user_downvoted']= False
+        upvotes = votes_col.count_documents({"answer_id": a["_id"], "vote_type": "up"})
+        downvotes = votes_col.count_documents(
+            {"answer_id": a["_id"], "vote_type": "down"}
+        )
+        a["votes"] = {"up": upvotes, "down": downvotes}
+        a["user_upvoted"] = False
+        a["user_downvoted"] = False
 
         # Mark if this user has upvoted/downvoted this answer
         if user_id:
-            a['user_upvoted'] = a['_id'] in user_upvoted
-            a['user_downvoted'] = a['_id'] in user_downvoted
+            a["user_upvoted"] = a["_id"] in user_upvoted
+            a["user_downvoted"] = a["_id"] in user_downvoted
 
     q["answers"] = answers
     return jsonify(q)
@@ -393,7 +427,7 @@ def get_admin_question(qid):
                 {"answer_id": a["_id"], "vote_type": "down"}
             )
             a["votes"] = {"up": upvotes, "down": downvotes}
-        
+
         q["answers"] = answers
 
         # LLM Content Moderation
@@ -502,20 +536,26 @@ def get_admin_question(qid):
         # Map moderation results to answer IDs
         answer_moderation = []
         if len(moderation_results) > 1:
-            for i, result in enumerate(moderation_results[1:]):  # Skip question, start from answers
+            for i, result in enumerate(
+                moderation_results[1:]
+            ):  # Skip question, start from answers
                 if i < len(answer_ids):
-                    answer_moderation.append({
-                        "answer_id": answer_ids[i],
-                        "relevant": result.get("relevant", True),
-                        "reason": result.get("reason", "Not moderated")
-                    })
+                    answer_moderation.append(
+                        {
+                            "answer_id": answer_ids[i],
+                            "relevant": result.get("relevant", True),
+                            "reason": result.get("reason", "Not moderated"),
+                        }
+                    )
                 else:
                     # Fallback if we have more results than answers
-                    answer_moderation.append({
-                        "answer_id": f"unknown_{i}",
-                        "relevant": result.get("relevant", True),
-                        "reason": result.get("reason", "Not moderated")
-                    })
+                    answer_moderation.append(
+                        {
+                            "answer_id": f"unknown_{i}",
+                            "relevant": result.get("relevant", True),
+                            "reason": result.get("reason", "Not moderated"),
+                        }
+                    )
 
         # Add moderation results to response
         q["moderation"] = {
