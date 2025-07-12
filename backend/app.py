@@ -795,6 +795,56 @@ def send_notification():
     notifications_col.insert_one(notification)
     return jsonify({"message": "Notification sent"}), 201
 
+@app.route("/questions/filter-by-tag", methods=["GET"])
+def filter_questions_by_tag():
+    tag = request.args.get("tag")
+    if not tag:
+        return jsonify({"error": "Tag parameter is required"}), 400
+
+    # Find questions that have the tag in their tags list
+    questions = list(questions_col.find({"tags": tag}))
+    result = []
+    for q in questions:
+        num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
+        result.append({
+            "_id": str(q["_id"]),
+            "title": q.get("title", ""),
+            "description": q.get("description", ""),
+            "tags": q.get("tags", []),
+            "num_answers": num_answers,
+            "created_at": q.get("created_at"),
+            "user_id": str(q.get("user_id", "")),
+        })
+    return jsonify(result)
+
+
+@app.route("/questions/search", methods=["GET"])
+def search_questions():
+    query = request.args.get("q")
+    if not query:
+        return jsonify({"error": "q parameter is required"}), 400
+
+    # Fuzzy search on title and description using regex (case-insensitive)
+    regex = {"$regex": query, "$options": "i"}
+    questions = list(questions_col.find({
+        "$or": [
+            {"title": regex},
+            {"description": regex}
+        ]
+    }))
+    result = []
+    for q in questions:
+        num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
+        result.append({
+            "_id": str(q["_id"]),
+            "title": q.get("title", ""),
+            "description": q.get("description", ""),
+            "tags": q.get("tags", []),
+            "num_answers": num_answers,
+            "created_at": q.get("created_at"),
+            "user_id": str(q.get("user_id", "")),
+        })
+    return jsonify(result)
 
 
 @app.route("/login", methods=["POST"])
