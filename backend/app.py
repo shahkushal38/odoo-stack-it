@@ -744,6 +744,24 @@ def add_answer(question_id):
     questions_col.update_one(
         {"_id": ObjectId(question_id)}, {"$set": {"updated_at": datetime.now()}}
     )
+
+    # Send notification to the question owner
+    question = questions_col.find_one({"_id": ObjectId(question_id)})
+    if question:
+        question_owner_id = question.get("user_id")
+        answerer_id = data["user_id"]
+        if question_owner_id and question_owner_id != answerer_id:
+            # Get answerer's username
+            answerer_doc = db['users'].find_one({'user_id': answerer_id})
+            answerer_username = answerer_doc['username'] if answerer_doc else "Someone"
+            notification = {
+                "user_id": question_owner_id,
+                "message": f"Your question has been answered by {answerer_username}.",
+                "is_read": False,
+                "created_at": datetime.now(),
+            }
+            notifications_col.insert_one(notification)
+
     return jsonify({"message": "Answer added"}), 201
 
 
@@ -794,6 +812,8 @@ def send_notification():
     }
     notifications_col.insert_one(notification)
     return jsonify({"message": "Notification sent"}), 201
+
+
 
 @app.route("/questions/filter-by-tag", methods=["GET"])
 def filter_questions_by_tag():
