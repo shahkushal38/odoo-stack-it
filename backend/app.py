@@ -246,19 +246,81 @@ def post_question(current_user):
 
 @app.route("/questions", methods=["GET"])
 def get_questions():
-    questions = list(questions_col.find())
+    # Get pagination parameters from query string
+    page = request.args.get("page", 1, type=int)
+    limit = request.args.get("limit", 10, type=int)
+    sort_by = request.args.get(
+        "sort", "created_at", type=str
+    )  # created_at, title, num_answers
+
+    # Validate pagination parameters
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:  # Max 100 questions per page
+        limit = 10
+
+    # Calculate skip value for pagination
+    skip = (page - 1) * limit
+
+    # Build sort criteria
+    sort_criteria = {}
+    if sort_by == "title":
+        sort_criteria["title"] = 1
+    elif sort_by == "num_answers":
+        # We'll sort by num_answers after fetching
+        sort_criteria["created_at"] = -1
+    else:
+        # Default sort by created_at (newest first)
+        sort_criteria["created_at"] = -1
+
+    # Get total count for pagination info
+    total_questions = questions_col.count_documents({})
+
+    # Fetch questions with pagination
+    questions = list(
+        questions_col.find().sort(list(sort_criteria.items())).skip(skip).limit(limit)
+    )
+
     result = []
     for q in questions:
         # Count answers in the separate answers collection
         num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
-        result.append({
-            "_id": str(q["_id"]),
-            "title": q.get("title", ""),
-            "description": q.get("description", ""),
-            "tags": q.get("tags", []),
-            "num_answers": num_answers
-        })
-    return jsonify(result)
+        result.append(
+            {
+                "_id": str(q["_id"]),
+                "title": q.get("title", ""),
+                "description": q.get("description", ""),
+                "tags": q.get("tags", []),
+                "num_answers": num_answers,
+                "created_at": q.get("created_at"),
+                "user_id": str(q.get("user_id", "")),
+            }
+        )
+
+    # Sort by num_answers if requested (after fetching since it's computed)
+    if sort_by == "num_answers":
+        result.sort(key=lambda x: x["num_answers"], reverse=True)
+
+    # Calculate pagination metadata
+    total_pages = (total_questions + limit - 1) // limit  # Ceiling division
+    has_next = page < total_pages
+    has_prev = page > 1
+
+    response_data = {
+        "questions": result,
+        "pagination": {
+            "current_page": page,
+            "total_pages": total_pages,
+            "total_questions": total_questions,
+            "questions_per_page": limit,
+            "has_next": has_next,
+            "has_prev": has_prev,
+            "next_page": page + 1 if has_next else None,
+            "prev_page": page - 1 if has_prev else None,
+        },
+    }
+
+    return jsonify(response_data)
 
 
 @app.route("/questions/<qid>", methods=["GET"])
@@ -267,22 +329,24 @@ def get_question(qid):
     if not q:
         return jsonify({"error": "Question not found"}), 404
 
-    q['_id'] = str(q['_id'])
-    q['user_id'] = str(q['user_id'])
+    q["_id"] = str(q["_id"])
+    q["user_id"] = str(q["user_id"])
 
     # Fetch answers from the separate collection
-    answers = list(answers_col.find({"question_id": str(q['_id'])}))
+    answers = list(answers_col.find({"question_id": str(q["_id"])}))
     for a in answers:
-        a['_id'] = str(a['_id'])
-        a['user_id'] = str(a['user_id'])
-        a['question_id'] = str(a['question_id'])
+        a["_id"] = str(a["_id"])
+        a["user_id"] = str(a["user_id"])
+        a["question_id"] = str(a["question_id"])
 
         # Aggregate upvotes and downvotes for this answer from the votes collection
-        upvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "up"})
-        downvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "down"})
-        a['votes'] = {"up": upvotes, "down": downvotes}
+        upvotes = votes_col.count_documents({"answer_id": a["_id"], "vote_type": "up"})
+        downvotes = votes_col.count_documents(
+            {"answer_id": a["_id"], "vote_type": "down"}
+        )
+        a["votes"] = {"up": upvotes, "down": downvotes}
 
-    q['answers'] = answers
+    q["answers"] = answers
     return jsonify(q)
 
 
@@ -294,20 +358,16 @@ def add_answer(question_id):
     data = request.get_json()
     answer = {
         "question_id": question_id,
-        "user_id": data['user_id'],
-        "content": data['content'],
+        "user_id": data["user_id"],
+        "content": data["content"],
         "created_at": datetime.utcnow(),
-        "votes": {
-            "up": 0,
-            "down": 0
-        },
-        "voters": []
+        "votes": {"up": 0, "down": 0},
+        "voters": [],
     }
     answers_col.insert_one(answer)
     # Optionally update the question's updated_at field
     questions_col.update_one(
-        {"_id": ObjectId(question_id)},
-        {"$set": {"updated_at": datetime.utcnow()}}
+        {"_id": ObjectId(question_id)}, {"$set": {"updated_at": datetime.utcnow()}}
     )
     return jsonify({"message": "Answer added"}), 201
 
@@ -332,10 +392,7 @@ def vote_answer(aid):
 
     # Update the answer's vote count
     update_field = "votes.up" if vote_type == "up" else "votes.down"
-    answers_col.update_one(
-        {"_id": ObjectId(aid)},
-        {"$inc": {update_field: 1}}
-    )
+    answers_col.update_one({"_id": ObjectId(aid)}, {"$inc": {update_field: 1}})
 
     return jsonify({"message": "Vote recorded"}), 201
 
