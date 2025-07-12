@@ -14,6 +14,12 @@ from bs4 import BeautifulSoup, Tag
 import base64
 import re
 from typing import cast
+import cloudinary
+from cloudinary import CloudinaryImage
+import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
+
+config = cloudinary.config(secure=True)
 
 load_dotenv()
 
@@ -49,6 +55,32 @@ llm = ChatGoogleGenerativeAI(
     google_api_key=os.getenv("GOOGLE_API_KEY"),
     temperature=0,
 )
+
+cloudinary.config(
+    cloud_name="dewnfkulb",
+    api_key="275387261959658",
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True,
+)
+
+
+def uploadImage(image_url, public_id):
+
+    # Upload the image and get its URL
+    # ==============================
+
+    # Upload the image.
+    # Set the asset's public ID and allow overwriting the asset with new versions
+    upload_result = cloudinary.uploader.upload(
+        image_url,
+        public_id=public_id,
+        unique_filename=False,
+        overwrite=True,
+    )
+    print(upload_result["secure_url"])
+
+    # Build the URL for the image and save it in the variable 'srcURL'
+    return upload_result["secure_url"]
 
 
 def token_required(f):
@@ -161,22 +193,28 @@ def post_question(current_user):
 
                     # Decode and save image
                     image_data = base64.b64decode(base64_data)
-                    filename = f"{uuid.uuid4()}.{image_type}"
+                    public_id = f"{uuid.uuid4()}.{image_type}"
+                    srcURL = uploadImage(image_data, public_id)
+                    image_urls.append(srcURL)
 
-                    # Create uploads directory if it doesn't exist
-                    upload_folder = os.path.join(os.path.dirname(__file__), "uploads")
-                    os.makedirs(upload_folder, exist_ok=True)
+                # Remove all img tags from the description
+        for img in soup.find_all("img"):
+            img = cast(Tag, img)
+            # Extract any text content (like alt text) before removing
+            alt_text = img.get("alt", "")
+            title_text = img.get("title", "")
 
-                    filepath = os.path.join(upload_folder, filename)
+            # If there's alt text or title, add it as text content
+            if alt_text or title_text:
+                text_content = alt_text if alt_text else title_text
+                # Replace the img tag with its alt/title text
+                new_text = soup.new_string(f" [Image: {text_content}] ")
+                img.replace_with(new_text)
+            else:
+                # Just remove the img tag completely
+                img.decompose()
 
-                    with open(filepath, "wb") as f:
-                        f.write(image_data)
-
-                    # Replace base64 with file path
-                    img["src"] = f"/uploads/{filename}"
-                    image_urls.append(f"/uploads/{filename}")
-
-        # Final cleaned-up HTML
+        # Final cleaned-up HTML with img tags removed
         cleaned_description = str(soup)
         question = {
             "user_id": current_user["user_id"],  # Get user_id from JWT token
@@ -186,7 +224,7 @@ def post_question(current_user):
             "created_at": data.get("createdAt"),
             "updated_at": None,
             "accepted_answer_id": None,
-            "image_urls": image_urls,
+            "image_urls": srcURL,
         }
 
         result = questions_col.insert_one(question)
