@@ -24,7 +24,7 @@ config = cloudinary.config(secure=True)
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
 
 
 def oid(id):
@@ -337,6 +337,8 @@ def get_question(qid):
     q["user_id"] = str(q["user_id"])
 
     # Fetch username for question poster
+    user_doc = db["users"].find_one({"user_id": q["user_id"]})
+    q["username"] = user_doc["username"] if user_doc else None
     user_doc = db["users"].find_one({"user_id": q["user_id"]})
     q["username"] = user_doc["username"] if user_doc else None
 
@@ -749,6 +751,24 @@ def add_answer(question_id):
     questions_col.update_one(
         {"_id": ObjectId(question_id)}, {"$set": {"updated_at": datetime.now()}}
     )
+
+    # Send notification to the question owner
+    question = questions_col.find_one({"_id": ObjectId(question_id)})
+    if question:
+        question_owner_id = question.get("user_id")
+        answerer_id = data["user_id"]
+        if question_owner_id and question_owner_id != answerer_id:
+            # Get answerer's username
+            answerer_doc = db["users"].find_one({"user_id": answerer_id})
+            answerer_username = answerer_doc["username"] if answerer_doc else "Someone"
+            notification = {
+                "user_id": question_owner_id,
+                "message": f"Your question has been answered by {answerer_username}.",
+                "is_read": False,
+                "created_at": datetime.now(),
+            }
+            notifications_col.insert_one(notification)
+
     return jsonify({"message": "Answer added"}), 201
 
 
@@ -799,6 +819,59 @@ def send_notification():
     }
     notifications_col.insert_one(notification)
     return jsonify({"message": "Notification sent"}), 201
+
+
+@app.route("/questions/filter-by-tag", methods=["GET"])
+def filter_questions_by_tag():
+    tag = request.args.get("tag")
+    if not tag:
+        return jsonify({"error": "Tag parameter is required"}), 400
+
+    # Find questions that have the tag in their tags list
+    questions = list(questions_col.find({"tags": tag}))
+    result = []
+    for q in questions:
+        num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
+        result.append(
+            {
+                "_id": str(q["_id"]),
+                "title": q.get("title", ""),
+                "description": q.get("description", ""),
+                "tags": q.get("tags", []),
+                "num_answers": num_answers,
+                "created_at": q.get("created_at"),
+                "user_id": str(q.get("user_id", "")),
+            }
+        )
+    return jsonify(result)
+
+
+@app.route("/questions/search", methods=["GET"])
+def search_questions():
+    query = request.args.get("q")
+    if not query:
+        return jsonify({"error": "q parameter is required"}), 400
+
+    # Fuzzy search on title and description using regex (case-insensitive)
+    regex = {"$regex": query, "$options": "i"}
+    questions = list(
+        questions_col.find({"$or": [{"title": regex}, {"description": regex}]})
+    )
+    result = []
+    for q in questions:
+        num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
+        result.append(
+            {
+                "_id": str(q["_id"]),
+                "title": q.get("title", ""),
+                "description": q.get("description", ""),
+                "tags": q.get("tags", []),
+                "num_answers": num_answers,
+                "created_at": q.get("created_at"),
+                "user_id": str(q.get("user_id", "")),
+            }
+        )
+    return jsonify(result)
 
 
 @app.route("/login", methods=["POST"])
