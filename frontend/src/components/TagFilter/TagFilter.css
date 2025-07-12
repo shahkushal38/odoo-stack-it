@@ -1,0 +1,33 @@
+.tag-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.tag-filter__tag {
+  background: #f3f3f7;
+  color: #764ba2;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.95rem;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.tag-filter__tag:hover {
+  border-color: #764ba2;
+  background: #ede9fe;
+  color: #4b256a;
+}
+
+.tag-filter__tag--selected {
+  background: #764ba2;
+  color: #fff;
+  border-color: #764ba2;
+  box-shadow: 0 2px 8px #ede9fe;
+} 

@@ -339,6 +339,8 @@ def get_question(qid):
     # Fetch username for question poster
     user_doc = db["users"].find_one({"user_id": q["user_id"]})
     q["username"] = user_doc["username"] if user_doc else None
+    user_doc = db["users"].find_one({"user_id": q["user_id"]})
+    q["username"] = user_doc["username"] if user_doc else None
 
     # Default: no user context
     user_id = None
