@@ -337,8 +337,8 @@ def get_question(qid):
     q["user_id"] = str(q["user_id"])
 
     # Fetch username for question poster
-    user_doc = db['users'].find_one({'user_id': q['user_id']})
-    q['username'] = user_doc['username'] if user_doc else None
+    user_doc = db["users"].find_one({"user_id": q["user_id"]})
+    q["username"] = user_doc["username"] if user_doc else None
 
     # Default: no user context
     user_id = None
@@ -386,8 +386,8 @@ def get_question(qid):
         a["question_id"] = str(a["question_id"])
 
         # Fetch username for answer poster
-        ans_user_doc = db['users'].find_one({'user_id': a['user_id']})
-        a['username'] = ans_user_doc['username'] if ans_user_doc else None
+        ans_user_doc = db["users"].find_one({"user_id": a["user_id"]})
+        a["username"] = ans_user_doc["username"] if ans_user_doc else None
 
         # Aggregate upvotes and downvotes for this answer from the votes collection
         upvotes = votes_col.count_documents({"answer_id": a["_id"], "vote_type": "up"})
@@ -447,8 +447,7 @@ def get_admin_question(qid):
 
         # Prepare content for moderation
         content_to_moderate = [
-            {"type": "question_title", "content": q_title},
-            {"type": "question_description", "content": q_description},
+            {"type": "question", "content": q_title + " " + q_description},
         ]
 
         # Add answers to moderation list
@@ -480,12 +479,13 @@ def get_admin_question(qid):
         For each piece of content, respond with a JSON object containing:
         - "relevant": boolean (true if content is appropriate and relevant, false if it violates guidelines)
         - "reason": string (brief explanation of why the content is relevant or why it was flagged)
+        - "type": string (the type of content being moderated question or answer)
 
         Return an array of JSON objects, one for each piece of content in the same order.
         Example format:
         [
-            {"relevant": true, "reason": "Content is appropriate and relevant to the topic"},
-            {"relevant": false, "reason": "Contains inappropriate language"}
+            {"type": "question", "relevant": true, "reason": "Content is appropriate and relevant to the topic"},
+            {"type": "answer_1", "relevant": false, "reason": "Contains inappropriate language"}
         ]
         """
 
@@ -512,10 +512,15 @@ def get_admin_question(qid):
                 moderation_results = json.loads(response_text.strip())
 
                 print(moderation_results)
+                print(len(moderation_results))
+                print("--------------------------------")
                 print(content_to_moderate)
+                print(len(content_to_moderate))
+                print("--------------------------------")
+                print(answer_ids)
 
                 # Ensure we have the right number of results
-                if len(moderation_results) != len(content_to_moderate) - 1:
+                if len(moderation_results) != len(content_to_moderate):
                     # If parsing failed or wrong number, create default results
                     moderation_results = []
                     for item in content_to_moderate:
@@ -752,8 +757,8 @@ def add_answer(question_id):
         answerer_id = data["user_id"]
         if question_owner_id and question_owner_id != answerer_id:
             # Get answerer's username
-            answerer_doc = db['users'].find_one({'user_id': answerer_id})
-            answerer_username = answerer_doc['username'] if answerer_doc else "Someone"
+            answerer_doc = db["users"].find_one({"user_id": answerer_id})
+            answerer_username = answerer_doc["username"] if answerer_doc else "Someone"
             notification = {
                 "user_id": question_owner_id,
                 "message": f"Your question has been answered by {answerer_username}.",
@@ -814,7 +819,6 @@ def send_notification():
     return jsonify({"message": "Notification sent"}), 201
 
 
-
 @app.route("/questions/filter-by-tag", methods=["GET"])
 def filter_questions_by_tag():
     tag = request.args.get("tag")
@@ -826,15 +830,17 @@ def filter_questions_by_tag():
     result = []
     for q in questions:
         num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
-        result.append({
-            "_id": str(q["_id"]),
-            "title": q.get("title", ""),
-            "description": q.get("description", ""),
-            "tags": q.get("tags", []),
-            "num_answers": num_answers,
-            "created_at": q.get("created_at"),
-            "user_id": str(q.get("user_id", "")),
-        })
+        result.append(
+            {
+                "_id": str(q["_id"]),
+                "title": q.get("title", ""),
+                "description": q.get("description", ""),
+                "tags": q.get("tags", []),
+                "num_answers": num_answers,
+                "created_at": q.get("created_at"),
+                "user_id": str(q.get("user_id", "")),
+            }
+        )
     return jsonify(result)
 
 
@@ -846,24 +852,23 @@ def search_questions():
 
     # Fuzzy search on title and description using regex (case-insensitive)
     regex = {"$regex": query, "$options": "i"}
-    questions = list(questions_col.find({
-        "$or": [
-            {"title": regex},
-            {"description": regex}
-        ]
-    }))
+    questions = list(
+        questions_col.find({"$or": [{"title": regex}, {"description": regex}]})
+    )
     result = []
     for q in questions:
         num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
-        result.append({
-            "_id": str(q["_id"]),
-            "title": q.get("title", ""),
-            "description": q.get("description", ""),
-            "tags": q.get("tags", []),
-            "num_answers": num_answers,
-            "created_at": q.get("created_at"),
-            "user_id": str(q.get("user_id", "")),
-        })
+        result.append(
+            {
+                "_id": str(q["_id"]),
+                "title": q.get("title", ""),
+                "description": q.get("description", ""),
+                "tags": q.get("tags", []),
+                "num_answers": num_answers,
+                "created_at": q.get("created_at"),
+                "user_id": str(q.get("user_id", "")),
+            }
+        )
     return jsonify(result)
 
 
