@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TagSelector from '../../components/TagSelector/TagSelector';
 import RichTextEditor from '../../components/RichTextEditor/RichTextEditor';
+import { isAuthenticated } from '../../utils/api';
+import { questionService } from '../../services/questionService';
 import './AskQuestion.css';
 
 const AskQuestion = () => {
@@ -56,30 +58,36 @@ const AskQuestion = () => {
     setIsSubmitting(true);
 
     try {
-      // Here you would typically send the data to your backend
+      // Check if user is authenticated
+      if (!isAuthenticated()) {
+        alert('Please log in to post a question');
+        navigate('/login');
+        return;
+      }
+
+      // Prepare the request body
       const questionData = {
         title: formData.title.trim(),
         description: formData.description,
         tags: formData.tags,
-        createdAt: new Date().toISOString(),
-        author: 'Current User', // This would come from auth context
-        votes: 0,
-        answers: 0,
-        views: 0
+        createdAt: new Date().toISOString()
       };
 
       console.log('Submitting question:', questionData);
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Make API call using quesgittion service
+      const result = await questionService.createQuestion(questionData);
 
-      // For now, just navigate back to home
-      // In a real app, you'd redirect to the question detail page
+      console.log('Question created successfully:', result);
+
+      // Navigate to the question detail page or home
+      // You can use result.question_id to navigate to the specific question
+      alert('Question posted successfully!');
       navigate('/');
 
     } catch (error) {
       console.error('Error submitting question:', error);
-      alert('Failed to submit question. Please try again.');
+      alert(`Failed to submit question: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
