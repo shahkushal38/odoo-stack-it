@@ -205,64 +205,55 @@ def post_question(current_user):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/questions', methods=['GET'])
+
+@app.route("/questions", methods=["GET"])
 def get_questions():
     questions = list(questions_col.find())
     for q in questions:
-        q['_id'] = str(q['_id'])
-        q['user_id'] = str(q['user_id'])
-        q['answers'] = [
-            {
-                **a,
-                "user_id": str(a["user_id"])
-            } for a in q.get('answers', [])
+        q["_id"] = str(q["_id"])
+        q["user_id"] = str(q["user_id"])
+        q["answers"] = [
+            {**a, "user_id": str(a["user_id"])} for a in q.get("answers", [])
         ]
     return jsonify(questions)
 
 
-@app.route('/questions/<qid>', methods=['GET'])
+@app.route("/questions/<qid>", methods=["GET"])
 def get_question(qid):
     q = questions_col.find_one({"_id": ObjectId(qid)})
     if not q:
         return jsonify({"error": "Question not found"}), 404
 
-    q['_id'] = str(q['_id'])
-    q['user_id'] = str(q['user_id'])
-    q['answers'] = [
-        {
-            **a,
-            "user_id": str(a["user_id"])
-        } for a in q.get('answers', [])
-    ]
+    q["_id"] = str(q["_id"])
+    q["user_id"] = str(q["user_id"])
+    q["answers"] = [{**a, "user_id": str(a["user_id"])} for a in q.get("answers", [])]
     return jsonify(q)
-
 
 
 # ----------------------- ANSWERS -----------------------
 
-@app.route('/questions/<question_id>/answers', methods=['POST'])
+
+@app.route("/questions/<question_id>/answers", methods=["POST"])
 def add_answer(question_id):
-    data = request.json
+    data = request.get_json()
     answer = {
-        "user_id": ObjectId(data['user_id']),
-        "content": data['content'],
-        "created_at": datetime.utcnow(),
-        "votes": {
-            "up": 0,
-            "down": 0
-        },
-        "voters": []  # Optional: [{ user_id, vote_type }]
+        "user_id": ObjectId(data["user_id"]),
+        "content": data["content"],
+        "created_at": datetime.now(),
+        "votes": {"up": 0, "down": 0},
+        "voters": [],  # Optional: [{ user_id, vote_type }]
     }
 
     result = questions_col.update_one(
         {"_id": ObjectId(question_id)},
-        {"$push": {"answers": answer}, "$set": {"updated_at": datetime.utcnow()}}
+        {"$push": {"answers": answer}, "$set": {"updated_at": datetime.now()}},
     )
 
     if result.modified_count == 0:
         return jsonify({"error": "Question not found"}), 404
 
     return jsonify({"message": "Answer added"}), 201
+
 
 # ----------------------- VOTES -----------------------
 
