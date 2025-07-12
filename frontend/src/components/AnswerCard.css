@@ -1,0 +1,31 @@
+.answer-card {
+  background: #ffffff26;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  position: relative;
+}
+.answer-card.accepted {
+  border: 2px solid #fc0;
+}
+.answer-card__content {
+  font-size: 1rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+.answer-card__footer {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.95rem;
+  color: #888;
+}
+.answer-card__badge {
+  background: linear-gradient(to right, #f90, #fc0);
+  color: #fff;
+  border-radius: 4px;
+  padding: 0.2rem 0.7rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
