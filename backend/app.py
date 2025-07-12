@@ -180,6 +180,7 @@ def post_question(current_user):
         soup = BeautifulSoup(description_html, "html.parser")
         img_tags = soup.find_all("img")
         image_urls = []
+        srcURL = None
 
         for img in img_tags:
             img = cast(Tag, img)
@@ -224,7 +225,7 @@ def post_question(current_user):
             "created_at": data.get("createdAt"),
             "updated_at": None,
             "accepted_answer_id": None,
-            "image_urls": srcURL,
+            "image_urls": srcURL if srcURL else [],
         }
 
         result = questions_col.insert_one(question)
@@ -573,6 +574,136 @@ def get_admin_question(qid):
         return jsonify({"error": f"Error processing admin question: {str(e)}"}), 500
 
 
+@app.route("/admin/flag-content", methods=["POST"])
+@token_required
+def flag_content(current_user):
+    try:
+        # Check if user is admin (you can add admin role check here)
+        # For now, we'll proceed with the request
+
+        if current_user["role"] != "admin":
+            return jsonify({"error": "Unauthorized"}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+
+        flag_requests = data.get("flags", [])
+        if not isinstance(flag_requests, list):
+            return jsonify({"error": "Flags must be an array"}), 400
+
+        results = []
+        updated_count = 0
+
+        for flag_request in flag_requests:
+            content_type = flag_request.get("type")
+            content_id = flag_request.get("id")
+            flag_value = flag_request.get("flag")
+
+            # Validate required fields
+            if not all([content_type, content_id, flag_value is not None]):
+                results.append(
+                    {
+                        "id": content_id,
+                        "type": content_type,
+                        "success": False,
+                        "error": "Missing required fields: type, id, or flag",
+                    }
+                )
+                continue
+
+            # Validate content type
+            if content_type not in ["question", "answer"]:
+                results.append(
+                    {
+                        "id": content_id,
+                        "type": content_type,
+                        "success": False,
+                        "error": "Invalid content type. Must be 'question' or 'answer'",
+                    }
+                )
+                continue
+
+            try:
+                if content_type == "question":
+                    # Update question with flag
+                    result = questions_col.update_one(
+                        {"_id": ObjectId(content_id)},
+                        {"$set": {"flagged": flag_value, "flagged_at": datetime.now()}},
+                    )
+
+                    if result.matched_count == 0:
+                        results.append(
+                            {
+                                "id": content_id,
+                                "type": content_type,
+                                "success": False,
+                                "error": "Question not found",
+                            }
+                        )
+                    else:
+                        results.append(
+                            {
+                                "id": content_id,
+                                "type": content_type,
+                                "success": True,
+                                "flagged": flag_value,
+                            }
+                        )
+                        updated_count += 1
+
+                elif content_type == "answer":
+                    # Update answer with flag
+                    result = answers_col.update_one(
+                        {"_id": ObjectId(content_id)},
+                        {"$set": {"flagged": flag_value, "flagged_at": datetime.now()}},
+                    )
+
+                    if result.matched_count == 0:
+                        results.append(
+                            {
+                                "id": content_id,
+                                "type": content_type,
+                                "success": False,
+                                "error": "Answer not found",
+                            }
+                        )
+                    else:
+                        results.append(
+                            {
+                                "id": content_id,
+                                "type": content_type,
+                                "success": True,
+                                "flagged": flag_value,
+                            }
+                        )
+                        updated_count += 1
+
+            except Exception as e:
+                results.append(
+                    {
+                        "id": content_id,
+                        "type": content_type,
+                        "success": False,
+                        "error": f"Database error: {str(e)}",
+                    }
+                )
+
+        return (
+            jsonify(
+                {
+                    "message": f"Processed {len(flag_requests)} flag requests",
+                    "updated_count": updated_count,
+                    "results": results,
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        return jsonify({"error": f"Error processing flag requests: {str(e)}"}), 500
+
+
 # ----------------------- ANSWERS -----------------------
 
 
@@ -583,14 +714,14 @@ def add_answer(question_id):
         "question_id": question_id,
         "user_id": data["user_id"],
         "content": data["content"],
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(),
         "votes": {"up": 0, "down": 0},
         "voters": [],
     }
     answers_col.insert_one(answer)
     # Optionally update the question's updated_at field
     questions_col.update_one(
-        {"_id": ObjectId(question_id)}, {"$set": {"updated_at": datetime.utcnow()}}
+        {"_id": ObjectId(question_id)}, {"$set": {"updated_at": datetime.now()}}
     )
     return jsonify({"message": "Answer added"}), 201
 
@@ -638,7 +769,7 @@ def send_notification():
         "user_id": data["user_id"],
         "message": data["message"],
         "is_read": False,
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(),
     }
     notifications_col.insert_one(notification)
     return jsonify({"message": "Notification sent"}), 201
@@ -654,7 +785,7 @@ def post_comment():
         "answer_id": data["answer_id"],
         "user_id": data["user_id"],
         "content": data["content"],
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(),
     }
     comments_col.insert_one(comment)
     return jsonify({"message": "Comment added"}), 201
