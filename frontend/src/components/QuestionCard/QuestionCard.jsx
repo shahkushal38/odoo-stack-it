@@ -26,7 +26,6 @@ const QuestionCard = ({ question }) => {
           ))}
         </div>
       </div>
-      <p className="question-card__desc">{question.description}</p>
       <div className="question-card__desc">
         <div className="question-card__desc" dangerouslySetInnerHTML={{ __html: shortDesc }} />
       </div>

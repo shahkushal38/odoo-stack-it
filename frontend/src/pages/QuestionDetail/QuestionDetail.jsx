@@ -46,11 +46,9 @@ const QuestionDetail = () => {
             alert('Please log in to vote');
             return;
         }
-
         try {
             // TODO: Implement vote API call
             console.log(`Voting ${voteType} for answer ${answerId}`);
-            // Refresh question data after voting
             await fetchQuestionDetails();
         } catch (error) {
             console.error('Error voting:', error);
@@ -63,12 +61,10 @@ const QuestionDetail = () => {
             alert('Please log in to submit an answer');
             return;
         }
-
         if (!newAnswer.trim() || newAnswer === '<p><br></p>') {
             alert('Please enter your answer');
             return;
         }
-
         try {
             setSubmittingAnswer(true);
             // TODO: Implement submit answer API call
@@ -90,7 +86,7 @@ const QuestionDetail = () => {
                 onClick={() => onVote(answerId, 'up')}
                 title="Upvote"
             >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 4L20 12H16V20H8V12H4L12 4Z" fill="currentColor" />
                 </svg>
             </button>
@@ -100,7 +96,7 @@ const QuestionDetail = () => {
                 onClick={() => onVote(answerId, 'down')}
                 title="Downvote"
             >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 20L4 12H8V4H16V12H20L12 20Z" fill="currentColor" />
                 </svg>
             </button>
@@ -125,11 +121,11 @@ const QuestionDetail = () => {
                         dangerouslySetInnerHTML={{ __html: answer.content }}
                     />
                     <div className="answer-card__meta">
+                        <span className="answer-card__author">
+                            {answer.username ? answer.username : `User ID: ${answer.user_id}`}
+                        </span>
                         <span className="answer-card__date">
                             {formatDate(answer.created_at)}
-                        </span>
-                        <span className="answer-card__author">
-                            User ID: {answer.user_id}
                         </span>
                     </div>
                 </div>
@@ -184,47 +180,33 @@ const QuestionDetail = () => {
             <div className="question-detail__container">
                 {/* Question Header */}
                 <div className="question-detail__header">
-                    <h1 className="question-detail__title">{question.title}</h1>
-                    <div className="question-detail__meta">
-                        <span className="question-detail__date">
-                            Asked {formatDate(question.created_at)}
-                        </span>
-                        <span className="question-detail__author">
-                            by User ID: {question.user_id}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Question Content */}
-                <div className="question-detail__content">
-                    <div className="question-detail__vote-section">
-                        <VoteButtons
-                            votes={{ up: 0, down: 0 }} // TODO: Add question votes
-                            userUpvoted={false}
-                            userDownvoted={false}
-                            onVote={handleVote}
-                            answerId={question._id}
-                        />
-                    </div>
                     <div className="question-detail__main">
-                        <div
-                            className="question-detail__description"
-                            dangerouslySetInnerHTML={{ __html: question.description }}
-                        />
-
+                        <div className="question-detail__info">
+                            <h1 className="question-detail__title">{question.title}</h1>
+                            <div className="question-detail__meta">
+                                <span className="question-detail__date">
+                                    Asked {formatDate(question.created_at)}
+                                </span>
+                                <span className="question-detail__author">
+                                    {question.username ? question.username : `User ID: ${question.user_id}`}
+                                </span>
+                            </div>
+                            <div
+                                className="question-detail__description"
+                                dangerouslySetInnerHTML={{ __html: question.description }}
+                            />
+                            <div className="question-detail__tags">
+                                {question.tags.map(tag => (
+                                    <span key={tag} className="question-detail__tag">{tag}</span>
+                                ))}
+                            </div>
+                        </div>
                         {/* Question Image */}
                         {question.image_urls && (
                             <div className="question-detail__image">
                                 <img src={question.image_urls} alt="Question" />
                             </div>
                         )}
-
-                        {/* Tags */}
-                        <div className="question-detail__tags">
-                            {question.tags.map(tag => (
-                                <span key={tag} className="question-detail__tag">{tag}</span>
-                            ))}
-                        </div>
                     </div>
                 </div>
 
@@ -233,7 +215,6 @@ const QuestionDetail = () => {
                     <h2 className="question-detail__answers-title">
                         {question.answers?.length || 0} Answer{question.answers?.length !== 1 ? 's' : ''}
                     </h2>
-
                     {question.answers && question.answers.length > 0 ? (
                         <div className="question-detail__answers">
                             {question.answers.map(answer => (
@@ -270,4 +251,4 @@ const QuestionDetail = () => {
     );
 };
 
-export default QuestionDetail; 
+export default QuestionDetail;
