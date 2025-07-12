@@ -259,4 +259,7 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
+# Seeder file
+backend/seeder.py
+
 # End of https://www.toptal.com/developers/gitignore/api/python,flask

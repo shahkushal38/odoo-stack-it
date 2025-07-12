@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import './LoginModal.css';
+import { toast } from 'react-toastify';
 
 const LoginModal = ({ isOpen, onClose, onSubmit }) => {
   const [username, setUsername] = useState('');
@@ -7,9 +9,17 @@ const LoginModal = ({ isOpen, onClose, onSubmit }) => {
 
   if (!isOpen) return null;
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    onSubmit({ username, password });
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL;
+      const res = await axios.post(`${backendUrl}/login`, { username, password });
+      onSubmit(res.data); // Pass user/token to parent
+      toast.success('Login successful!');
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Login failed. Please try again.');
+    }
   };
 
   return (
