@@ -1,0 +1,36 @@
+.rich-text-editor {
+  margin: 1rem 0;
+}
+.rich-text-editor__label {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+.rich-text-editor__textarea {
+  width: 100%;
+  border-radius: 8px;
+  border: 1.5px solid #fc0;
+  padding: 0.8rem;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  resize: vertical;
+}
+.rich-text-editor__toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.rich-text-editor__toolbar button {
+  background: linear-gradient(to right, #f90, #fc0);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.3rem 0.7rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+.rich-text-editor__toolbar button:hover {
+  box-shadow: 0 2px 8px rgba(255, 204, 0, 0.2);
+}
