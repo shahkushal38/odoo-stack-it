@@ -7,12 +7,16 @@ from dotenv import load_dotenv
 import os
 from pymongo import MongoClient
 from bson import ObjectId
-
 from functools import wraps
 import jwt
+from langchain_google_genai import ChatGoogleGenerativeAI
+from bs4 import BeautifulSoup, Tag
+import base64
+import re
+from typing import cast
 
 load_dotenv()
-UPLOAD_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), "temp"))
+
 app = Flask(__name__)
 CORS(app)
 
@@ -21,8 +25,6 @@ def oid(id):
     return ObjectId(id)
 
 
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1000 * 1000  # 500 MB
 app.config["CORS_HEADER"] = "application/json"
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 
@@ -41,6 +43,12 @@ answers_col = db["answers"]
 votes_col = db["votes"]
 comments_col = db["comments"]
 notifications_col = db["notifications"]
+
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash",
+    google_api_key=os.getenv("GOOGLE_API_KEY"),
+    temperature=0,
+)
 
 
 def token_required(f):
@@ -122,19 +130,80 @@ def registerUser():
 
 
 @app.route("/questions", methods=["POST"])
-def post_question():
-    data = request.get_json()
-    question = {
-        "user_id": oid(data["user_id"]),
-        "title": data["title"],
-        "description": data["description"],
-        "tags": [oid(t) for t in data.get("tags", [])],
-        "created_at": datetime.now(),
-        "updated_at": None,
-        "accepted_answer_id": None,
-    }
-    questions_col.insert_one(question)
-    return jsonify({"message": "Question created"}), 201
+@token_required
+def post_question(current_user):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+
+        description_html = data.get("description", "")
+        title = data.get("title")
+        tags = data.get("tags", [])
+
+        # Validate required fields
+        if not title or not description_html:
+            return jsonify({"error": "Title and description are required"}), 400
+
+        soup = BeautifulSoup(description_html, "html.parser")
+        img_tags = soup.find_all("img")
+        image_urls = []
+
+        for img in img_tags:
+            img = cast(Tag, img)
+            src = img.get("src")
+            if src and str(src).startswith("data:image"):
+                # Extract image type and base64 data
+                match = re.match(r"data:image/(.*?);base64,(.*)", str(src))
+                if match:
+                    image_type = match.group(1)  # e.g., 'png', 'jpeg'
+                    base64_data = match.group(2)
+
+                    # Decode and save image
+                    image_data = base64.b64decode(base64_data)
+                    filename = f"{uuid.uuid4()}.{image_type}"
+
+                    # Create uploads directory if it doesn't exist
+                    upload_folder = os.path.join(os.path.dirname(__file__), "uploads")
+                    os.makedirs(upload_folder, exist_ok=True)
+
+                    filepath = os.path.join(upload_folder, filename)
+
+                    with open(filepath, "wb") as f:
+                        f.write(image_data)
+
+                    # Replace base64 with file path
+                    img["src"] = f"/uploads/{filename}"
+                    image_urls.append(f"/uploads/{filename}")
+
+        # Final cleaned-up HTML
+        cleaned_description = str(soup)
+        question = {
+            "user_id": current_user["user_id"],  # Get user_id from JWT token
+            "title": title,
+            "description": cleaned_description,
+            "tags": [t for t in tags],
+            "created_at": data.get("createdAt"),
+            "updated_at": None,
+            "accepted_answer_id": None,
+            "image_urls": image_urls,
+        }
+
+        result = questions_col.insert_one(question)
+        question["_id"] = str(result.inserted_id)
+
+        return (
+            jsonify(
+                {
+                    "message": "Question created successfully",
+                    "question_id": str(result.inserted_id),
+                }
+            ),
+            201,
+        )
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/questions", methods=["GET"])
@@ -355,6 +424,23 @@ def get_profile(current_user):
         "role": current_user["role"],
     }
     return jsonify({"user": user_data}), 200
+
+
+@app.route("/generate-title", methods=["POST"])
+def generate_title():
+    data = request.get_json()
+    description = data.get("description")
+
+    if not description:
+        return jsonify({"error": "Description is required"}), 400
+
+    try:
+        prompt = f"Generate a concise, clear, and relevant question title for this description:\n\n{description}"
+        response = llm.invoke(prompt)
+        content = response.content if hasattr(response, "content") else str(response)
+        return jsonify({"suggested_title": content})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
