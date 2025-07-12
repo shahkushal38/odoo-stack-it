@@ -34,7 +34,7 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Handle unauthorized access
-      localStorage.removeItem('jwt');
+      localStorage.removeItem('token');
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -43,7 +43,7 @@ apiClient.interceptors.response.use(
 
 // Get JWT token from localStorage
 export const getAuthToken = () => {
-  return localStorage.getItem('jwt');
+  return localStorage.getItem('token');
 };
 
 // Check if user is authenticated
