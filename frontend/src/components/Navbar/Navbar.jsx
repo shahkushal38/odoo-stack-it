@@ -16,6 +16,7 @@ const Navbar = ({ onNotificationsClick, notificationCount }) => {
     console.log("Login data:", data);
     localStorage.setItem('user', JSON.stringify(data.user));
     localStorage.setItem('token', data.token);
+    localStorage.setItem('role', data.user.role);
     setUser(data.user);
     setShowLogin(false);
   };
