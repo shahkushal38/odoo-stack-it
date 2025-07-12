@@ -63,7 +63,29 @@ const QuestionDetail = () => {
             const data = await res.json();
             if (res.ok) {
                 toast.success(data.message || 'Vote recorded');
-                await fetchQuestionDetails();
+                // Update the answer's vote state locally for instant feedback
+                setQuestion(prev => {
+                    if (!prev) return prev;
+                    return {
+                        ...prev,
+                        answers: prev.answers.map(ans => {
+                            if (ans._id === answerId) {
+                                let newVotes = { ...ans.votes };
+                                if (voteType === 'up') newVotes.up = (newVotes.up || 0) + 1;
+                                if (voteType === 'down') newVotes.down = (newVotes.down || 0) + 1;
+                                return {
+                                    ...ans,
+                                    votes: newVotes,
+                                    user_upvoted: voteType === 'up',
+                                    user_downvoted: voteType === 'down',
+                                };
+                            }
+                            return ans;
+                        })
+                    };
+                });
+                // Optionally, also refetch for backend truth
+                // await fetchQuestionDetails();
             } else {
                 throw new Error(data.message || 'Failed to record vote');
             }
