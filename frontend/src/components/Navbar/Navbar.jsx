@@ -2,6 +2,7 @@ import React, {useState } from 'react';
 import './Navbar.css';
 import LoginModal from '../LoginModal/LoginModal';
 import RegistrationModal from '../RegistrationModal/RegistrationModal';
+import { useNavigate } from 'react-router-dom';
 
 const Navbar = ({ onNotificationsClick, notificationCount }) => {
   const [showLogin, setShowLogin] = useState(false);
@@ -11,6 +12,7 @@ const Navbar = ({ onNotificationsClick, notificationCount }) => {
     const token = localStorage.getItem('token');
     return stored && token ? JSON.parse(stored) : null;
   });
+  const navigate = useNavigate();
 
   const handleLoginSubmit = (data) => {
     console.log("Login data:", data);
@@ -21,6 +23,10 @@ const Navbar = ({ onNotificationsClick, notificationCount }) => {
     setShowLogin(false);
   };
 
+  const redirectToHome = () => {
+    navigate(`/`);
+  };
+
   const handleRegisterSubmit = (data) => {
     localStorage.setItem('user', JSON.stringify(data));   
     setShowRegister(false);
@@ -29,7 +35,7 @@ const Navbar = ({ onNotificationsClick, notificationCount }) => {
 
   return (
     <nav className="navbar">
-      <div className="navbar__logo">StackIt</div>
+      <div className="navbar__logo" onClick={redirectToHome}>StackIt</div>
       <div className="navbar__actions">
         <button className="navbar__bell" onClick={onNotificationsClick}>
           <span role="img" aria-label="notifications">🔔</span>
