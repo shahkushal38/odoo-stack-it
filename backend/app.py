@@ -205,73 +205,64 @@ def post_question(current_user):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-@app.route("/questions", methods=["GET"])
+@app.route('/questions', methods=['GET'])
 def get_questions():
     questions = list(questions_col.find())
     for q in questions:
-        q["_id"] = str(q["_id"])
-        q["user_id"] = str(q["user_id"])
-        q["tags"] = [str(t) for t in q.get("tags", [])]
+        q['_id'] = str(q['_id'])
+        q['user_id'] = str(q['user_id'])
+        q['answers'] = [
+            {
+                **a,
+                "user_id": str(a["user_id"])
+            } for a in q.get('answers', [])
+        ]
     return jsonify(questions)
 
 
-@app.route("/questions/<qid>", methods=["GET"])
+@app.route('/questions/<qid>', methods=['GET'])
 def get_question(qid):
-    q = questions_col.find_one({"_id": oid(qid)})
+    q = questions_col.find_one({"_id": ObjectId(qid)})
     if not q:
-        return jsonify({"error": "Not found"}), 404
-    q["_id"] = str(q["_id"])
-    q["user_id"] = str(q["user_id"])
-    q["tags"] = [str(t) for t in q.get("tags", [])]
+        return jsonify({"error": "Question not found"}), 404
+
+    q['_id'] = str(q['_id'])
+    q['user_id'] = str(q['user_id'])
+    q['answers'] = [
+        {
+            **a,
+            "user_id": str(a["user_id"])
+        } for a in q.get('answers', [])
+    ]
     return jsonify(q)
+
 
 
 # ----------------------- ANSWERS -----------------------
 
-
-@app.route("/answers", methods=["POST"])
-def post_answer():
-    data = request.get_json()
+@app.route('/questions/<question_id>/answers', methods=['POST'])
+def add_answer(question_id):
+    data = request.json
     answer = {
-        "question_id": oid(data["question_id"]),
-        "user_id": oid(data["user_id"]),
-        "content": data["content"],
+        "user_id": ObjectId(data['user_id']),
+        "content": data['content'],
         "created_at": datetime.utcnow(),
-        "updated_at": None,
+        "votes": {
+            "up": 0,
+            "down": 0
+        },
+        "voters": []  # Optional: [{ user_id, vote_type }]
     }
-    answers_col.insert_one(answer)
+
+    result = questions_col.update_one(
+        {"_id": ObjectId(question_id)},
+        {"$push": {"answers": answer}, "$set": {"updated_at": datetime.utcnow()}}
+    )
+
+    if result.modified_count == 0:
+        return jsonify({"error": "Question not found"}), 404
+
     return jsonify({"message": "Answer added"}), 201
-
-
-@app.route("/questions/<qid>/answers", methods=["GET"])
-def get_answers(qid):
-    ans = list(answers_col.find({"question_id": oid(qid)}))
-    for a in ans:
-        a["_id"] = str(a["_id"])
-        a["question_id"] = str(a["question_id"])
-        a["user_id"] = str(a["user_id"])
-    return jsonify(ans)
-
-
-# ----------------------- TAGS -----------------------
-
-
-@app.route("/tags", methods=["POST"])
-def create_tag():
-    data = request.get_json()
-    tag = {"name": data["name"]}
-    tags_col.insert_one(tag)
-    return jsonify({"message": "Tag created"})
-
-
-@app.route("/tags", methods=["GET"])
-def get_tags():
-    tags = list(tags_col.find())
-    for t in tags:
-        t["_id"] = str(t["_id"])
-    return jsonify(tags)
-
 
 # ----------------------- VOTES -----------------------
 
