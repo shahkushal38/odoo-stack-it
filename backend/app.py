@@ -279,7 +279,10 @@ def get_questions():
 
     # Fetch questions with pagination
     questions = list(
-        questions_col.find().sort(list(sort_criteria.items())).skip(skip).limit(limit)
+        questions_col.find({"flagged": {"$ne": True}})
+        .sort(list(sort_criteria.items()))
+        .skip(skip)
+        .limit(limit)
     )
 
     result = []
@@ -629,7 +632,12 @@ def flag_content(current_user):
                     # Update question with flag
                     result = questions_col.update_one(
                         {"_id": ObjectId(content_id)},
-                        {"$set": {"flagged": flag_value, "flagged_at": datetime.now()}},
+                        {
+                            "$set": {
+                                "flagged": bool(flag_value),
+                                "flagged_at": datetime.now(),
+                            }
+                        },
                     )
 
                     if result.matched_count == 0:
@@ -647,7 +655,7 @@ def flag_content(current_user):
                                 "id": content_id,
                                 "type": content_type,
                                 "success": True,
-                                "flagged": flag_value,
+                                "flagged": bool(flag_value),
                             }
                         )
                         updated_count += 1
@@ -656,7 +664,12 @@ def flag_content(current_user):
                     # Update answer with flag
                     result = answers_col.update_one(
                         {"_id": ObjectId(content_id)},
-                        {"$set": {"flagged": flag_value, "flagged_at": datetime.now()}},
+                        {
+                            "$set": {
+                                "flagged": bool(flag_value),
+                                "flagged_at": datetime.now(),
+                            }
+                        },
                     )
 
                     if result.matched_count == 0:
@@ -674,7 +687,7 @@ def flag_content(current_user):
                                 "id": content_id,
                                 "type": content_type,
                                 "success": True,
-                                "flagged": flag_value,
+                                "flagged": bool(flag_value),
                             }
                         )
                         updated_count += 1
