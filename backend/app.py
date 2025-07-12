@@ -304,6 +304,10 @@ def get_question(qid):
     q['_id'] = str(q['_id'])
     q['user_id'] = str(q['user_id'])
 
+    # Fetch username for question poster
+    user_doc = db['users'].find_one({'user_id': q['user_id']})
+    q['username'] = user_doc['username'] if user_doc else None
+
     # Default: no user context
     user_id = None
     user_votes = {}
@@ -344,6 +348,10 @@ def get_question(qid):
         a["_id"] = str(a["_id"])
         a["user_id"] = str(a["user_id"])
         a["question_id"] = str(a["question_id"])
+
+        # Fetch username for answer poster
+        ans_user_doc = db['users'].find_one({'user_id': a['user_id']})
+        a['username'] = ans_user_doc['username'] if ans_user_doc else None
 
         # Aggregate upvotes and downvotes for this answer from the votes collection
         upvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "up"})
@@ -431,31 +439,6 @@ def send_notification():
     notifications_col.insert_one(notification)
     return jsonify({"message": "Notification sent"}), 201
 
-
-# ----------------------- COMMENTS -----------------------
-
-
-@app.route("/comments", methods=["POST"])
-def post_comment():
-    data = request.get_json()
-    comment = {
-        "answer_id": data["answer_id"],
-        "user_id": data["user_id"],
-        "content": data["content"],
-        "created_at": datetime.utcnow(),
-    }
-    comments_col.insert_one(comment)
-    return jsonify({"message": "Comment added"}), 201
-
-
-@app.route("/answers/<aid>/comments", methods=["GET"])
-def get_comments(aid):
-    comms = list(comments_col.find({"answer_id": aid}))
-    for c in comms:
-        c["_id"] = str(c["_id"])
-        c["user_id"] = str(c["user_id"])
-        c["answer_id"] = str(c["answer_id"])
-    return jsonify(comms)
 
 
 @app.route("/login", methods=["POST"])
