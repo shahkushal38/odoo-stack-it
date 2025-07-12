@@ -180,36 +180,33 @@ const QuestionDetail = () => {
             <div className="question-detail__container">
                 {/* Question Header */}
                 <div className="question-detail__header">
-                    <h1 className="question-detail__title">{question.title}</h1>
-                    <div className="question-detail__meta">
-                        <span className="question-detail__date">
-                            Asked {formatDate(question.created_at)}
-                        </span>
-                        <span className="question-detail__author">
-                            {question.username ? question.username : `User ID: ${question.user_id}`}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Question Content */}
-                <div className="question-detail__content">
                     <div className="question-detail__main">
-                        <div
-                            className="question-detail__description"
-                            dangerouslySetInnerHTML={{ __html: question.description }}
-                        />
+                        <div className="question-detail__info">
+                            <h1 className="question-detail__title">{question.title}</h1>
+                            <div className="question-detail__meta">
+                                <span className="question-detail__date">
+                                    Asked {formatDate(question.created_at)}
+                                </span>
+                                <span className="question-detail__author">
+                                    {question.username ? question.username : `User ID: ${question.user_id}`}
+                                </span>
+                            </div>
+                            <div
+                                className="question-detail__description"
+                                dangerouslySetInnerHTML={{ __html: question.description }}
+                            />
+                            <div className="question-detail__tags">
+                                {question.tags.map(tag => (
+                                    <span key={tag} className="question-detail__tag">{tag}</span>
+                                ))}
+                            </div>
+                        </div>
                         {/* Question Image */}
                         {question.image_urls && (
                             <div className="question-detail__image">
                                 <img src={question.image_urls} alt="Question" />
                             </div>
                         )}
-                        {/* Tags */}
-                        <div className="question-detail__tags">
-                            {question.tags.map(tag => (
-                                <span key={tag} className="question-detail__tag">{tag}</span>
-                            ))}
-                        </div>
                     </div>
                 </div>
 
@@ -254,4 +251,4 @@ const QuestionDetail = () => {
     );
 };
 
-export default QuestionDetail; 
+export default QuestionDetail;
