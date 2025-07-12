@@ -130,29 +130,12 @@ def registerUser():
 
 
 @app.route("/questions", methods=["POST"])
-<<<<<<< HEAD
-def post_question():
-    data = request.get_json()
-    question = {
-        "user_id": data['user_id'],  # UUID string, do not wrap with ObjectId
-        "title": data['title'],
-        "description": data['description'],
-        "tags": data.get('tags', []),  # list of tag names like ["mongodb", "flask"]
-        "answers": [],  # initially empty
-        "created_at": datetime.utcnow(),
-        "updated_at": None,
-        "accepted_answer_id": None,
-    }
-    result = questions_col.insert_one(question)
-    return jsonify({"message": "Question created", "question_id": str(result.inserted_id)}), 201
-=======
 @token_required
 def post_question(current_user):
     try:
         data = request.get_json()
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
->>>>>>> 9e8f817f7ad1f5bf13c07d999ad6233a312b1b7d
 
         description_html = data.get("description", "")
         title = data.get("title")
@@ -228,7 +211,6 @@ def get_questions():
     questions = list(questions_col.find())
     result = []
     for q in questions:
-<<<<<<< HEAD
         # Count answers in the separate answers collection
         num_answers = answers_col.count_documents({"question_id": str(q["_id"])})
         result.append({
@@ -239,14 +221,6 @@ def get_questions():
             "num_answers": num_answers
         })
     return jsonify(result)
-=======
-        q["_id"] = str(q["_id"])
-        q["user_id"] = str(q["user_id"])
-        q["answers"] = [
-            {**a, "user_id": str(a["user_id"])} for a in q.get("answers", [])
-        ]
-    return jsonify(questions)
->>>>>>> 9e8f817f7ad1f5bf13c07d999ad6233a312b1b7d
 
 
 @app.route("/questions/<qid>", methods=["GET"])
@@ -255,7 +229,6 @@ def get_question(qid):
     if not q:
         return jsonify({"error": "Question not found"}), 404
 
-<<<<<<< HEAD
     q['_id'] = str(q['_id'])
     q['user_id'] = str(q['user_id'])
 
@@ -272,11 +245,6 @@ def get_question(qid):
         a['votes'] = {"up": upvotes, "down": downvotes}
 
     q['answers'] = answers
-=======
-    q["_id"] = str(q["_id"])
-    q["user_id"] = str(q["user_id"])
-    q["answers"] = [{**a, "user_id": str(a["user_id"])} for a in q.get("answers", [])]
->>>>>>> 9e8f817f7ad1f5bf13c07d999ad6233a312b1b7d
     return jsonify(q)
 
 
@@ -287,7 +255,6 @@ def get_question(qid):
 def add_answer(question_id):
     data = request.get_json()
     answer = {
-<<<<<<< HEAD
         "question_id": question_id,
         "user_id": data['user_id'],
         "content": data['content'],
@@ -297,23 +264,12 @@ def add_answer(question_id):
             "down": 0
         },
         "voters": []
-=======
-        "user_id": ObjectId(data["user_id"]),
-        "content": data["content"],
-        "created_at": datetime.now(),
-        "votes": {"up": 0, "down": 0},
-        "voters": [],  # Optional: [{ user_id, vote_type }]
->>>>>>> 9e8f817f7ad1f5bf13c07d999ad6233a312b1b7d
     }
     answers_col.insert_one(answer)
     # Optionally update the question's updated_at field
     questions_col.update_one(
         {"_id": ObjectId(question_id)},
-<<<<<<< HEAD
         {"$set": {"updated_at": datetime.utcnow()}}
-=======
-        {"$push": {"answers": answer}, "$set": {"updated_at": datetime.now()}},
->>>>>>> 9e8f817f7ad1f5bf13c07d999ad6233a312b1b7d
     )
     return jsonify({"message": "Answer added"}), 201
 
