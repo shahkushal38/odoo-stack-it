@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { questionService } from '../../services/questionService';
 import { isAuthenticated } from '../../utils/api';
 import RichTextEditor from '../../components/RichTextEditor/RichTextEditor';
+import { toast } from 'react-toastify';
 import './QuestionDetail.css';
 
 const QuestionDetail = () => {
@@ -43,37 +44,69 @@ const QuestionDetail = () => {
 
     const handleVote = async (answerId, voteType) => {
         if (!isAuthenticated()) {
-            alert('Please log in to vote');
+            toast.error('Please log in to vote');
             return;
         }
         try {
-            // TODO: Implement vote API call
-            console.log(`Voting ${voteType} for answer ${answerId}`);
-            await fetchQuestionDetails();
+            const user = JSON.parse(localStorage.getItem('user'));
+            const user_id = user?._id || user?.id || user?.user_id;
+            const res = await fetch(`http://127.0.0.1:5000/answers/${answerId}/vote`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id,
+                    vote_type: voteType
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(data.message || 'Vote recorded');
+                await fetchQuestionDetails();
+            } else {
+                throw new Error(data.message || 'Failed to record vote');
+            }
         } catch (error) {
             console.error('Error voting:', error);
-            alert('Failed to vote. Please try again.');
+            toast.error('Failed to vote. Please try again.');
         }
     };
 
     const handleSubmitAnswer = async () => {
         if (!isAuthenticated()) {
-            alert('Please log in to submit an answer');
+            toast.error('Please log in to submit an answer');
             return;
         }
         if (!newAnswer.trim() || newAnswer === '<p><br></p>') {
-            alert('Please enter your answer');
+            toast.error('Please enter your answer');
             return;
         }
         try {
             setSubmittingAnswer(true);
-            // TODO: Implement submit answer API call
-            console.log('Submitting answer:', newAnswer);
-            setNewAnswer('');
-            await fetchQuestionDetails();
+            const user = JSON.parse(localStorage.getItem('user'));
+            const user_id = user?._id || user?.id || user?.user_id;
+            const res = await fetch(`http://127.0.0.1:5000/questions/${questionId}/answers`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id,
+                    content: newAnswer
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(data.message || 'Answer added');
+                setNewAnswer('');
+                await fetchQuestionDetails();
+            } else {
+                throw new Error(data.message || 'Failed to add answer');
+            }
         } catch (error) {
             console.error('Error submitting answer:', error);
-            alert('Failed to submit answer. Please try again.');
+            toast.error('Failed to submit answer. Please try again.');
         } finally {
             setSubmittingAnswer(false);
         }
@@ -82,9 +115,10 @@ const QuestionDetail = () => {
     const VoteButtons = ({ votes, userUpvoted, userDownvoted, onVote, answerId }) => (
         <div className="vote-buttons">
             <button
-                className={`vote-button vote-button--up ${userUpvoted ? 'vote-button--active' : ''}`}
+                className={`vote-button vote-button--up${userUpvoted ? ' vote-button--active vote-button--green' : ''}`}
                 onClick={() => onVote(answerId, 'up')}
                 title="Upvote"
+                disabled={userUpvoted || userDownvoted}
             >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 4L20 12H16V20H8V12H4L12 4Z" fill="currentColor" />
@@ -92,9 +126,10 @@ const QuestionDetail = () => {
             </button>
             <span className="vote-count">{votes.up - votes.down}</span>
             <button
-                className={`vote-button vote-button--down ${userDownvoted ? 'vote-button--active' : ''}`}
+                className={`vote-button vote-button--down${userDownvoted ? ' vote-button--active vote-button--red' : ''}`}
                 onClick={() => onVote(answerId, 'down')}
                 title="Downvote"
+                disabled={userUpvoted || userDownvoted}
             >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 20L4 12H8V4H16V12H20L12 20Z" fill="currentColor" />
