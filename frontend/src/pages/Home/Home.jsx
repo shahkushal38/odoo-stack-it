@@ -9,20 +9,25 @@ const Home = () => {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState(null);
+  const limit = 2;
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
 
   useEffect(() => {
-    // getAllQuestions()
-    //   .then(data => {
-    //     setQuestions(data);
-    //     setLoading(false);
-    //   })
-    //   .catch(err => {
-    //     setError('Failed to load questions');
-    //     setLoading(false);
-    //   });
-  }, []);
+    setLoading(true);
+    getAllQuestions(page, limit)
+      .then((data) => {
+        setQuestions(data.questions);
+        setPagination(data.pagination);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError("Failed to load questions");
+        setLoading(false);
+      });
+  }, [page]);
 
   // Derive all unique tags from questions
   const allTags = useMemo(() => {
@@ -64,6 +69,36 @@ const Home = () => {
           ))
         )}
       </div>
+      {pagination && (
+        <div className="home__pagination">
+          <button
+            className="home__pagination-btn"
+            disabled={!pagination.has_prev}
+            onClick={() => setPage(pagination.prev_page)}
+          >
+            Prev
+          </button>
+          {[...Array(pagination.total_pages)].map((_, i) => (
+            <button
+              key={i + 1}
+              className={`home__pagination-btn${
+                pagination.current_page === i + 1 ? " active" : ""
+              }`}
+              onClick={() => setPage(i + 1)}
+              disabled={pagination.current_page === i + 1}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button
+            className="home__pagination-btn"
+            disabled={!pagination.has_next}
+            onClick={() => setPage(pagination.next_page)}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 };
