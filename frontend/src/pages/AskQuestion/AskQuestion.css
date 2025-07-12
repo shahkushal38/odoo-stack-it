@@ -1,15 +1,16 @@
 .ask-question {
   max-width: 700px;
   margin: 2rem auto;
-  padding: 1rem;
-  background: #ffffff26;
+  padding: 1.5rem;
+  background: white;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 12px var(--shadow-light);
+  border: 1px solid var(--border-color);
 }
 .ask-question__title {
   font-size: 1.7rem;
   font-weight: bold;
-  background: linear-gradient(to right, #f90, #fc0);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -24,20 +25,31 @@
 }
 .ask-question__input {
   border-radius: 8px;
-  border: 1.5px solid #fc0;
-  padding: 0.8rem;
+  border: 2px solid var(--border-color);
+  padding: 1rem;
   font-size: 1rem;
+  background: white;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+.ask-question__input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--shadow-light);
 }
 .ask-question__submit {
-  background: linear-gradient(to right, #f90, #fc0);
-  color: #fff;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+  color: white;
   border: none;
-  border-radius: 4px;
-  padding: 0.7rem 1.2rem;
+  border-radius: 8px;
+  padding: 0.8rem 1.5rem;
   font-weight: 600;
   cursor: pointer;
-  transition: box-shadow 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px var(--shadow-light);
 }
 .ask-question__submit:hover {
-  box-shadow: 0 2px 8px rgba(255, 204, 0, 0.2);
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-color));
+  box-shadow: 0 4px 12px var(--shadow-medium);
+  transform: translateY(-1px);
 }

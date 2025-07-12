@@ -2,11 +2,12 @@
   max-width: 800px;
   margin: 2rem auto;
   padding: 1rem;
+  background-color: var(--background-color);
 }
 .home__title {
   font-size: 2rem;
   font-weight: bold;
-  background: linear-gradient(to right, #f90, #fc0);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

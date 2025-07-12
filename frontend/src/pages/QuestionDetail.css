@@ -1,15 +1,16 @@
 .question-detail {
   max-width: 800px;
   margin: 2rem auto;
-  padding: 1rem;
-  background: #ffffff26;
+  padding: 1.5rem;
+  background: white;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 12px var(--shadow-light);
+  border: 1px solid var(--border-color);
 }
 .question-detail__title {
   font-size: 1.5rem;
   font-weight: bold;
-  background: linear-gradient(to right, #f90, #fc0);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -20,22 +21,25 @@
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
 .question-detail__tag {
-  background: linear-gradient(to right, #f90, #fc0);
-  color: #fff;
-  border-radius: 4px;
-  padding: 0.2rem 0.6rem;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+  color: white;
+  border-radius: 6px;
+  padding: 0.3rem 0.8rem;
   font-size: 0.85rem;
   font-weight: 600;
+  box-shadow: 0 2px 4px var(--shadow-light);
 }
 .question-detail__desc {
   margin-bottom: 1rem;
-  color: #333;
+  color: var(--text-primary);
+  line-height: 1.6;
 }
 .question-detail__votes {
   font-size: 1rem;
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 1.5rem;
 }
 .question-detail__answers-title {
@@ -43,6 +47,7 @@
   font-weight: bold;
   margin-top: 2rem;
   margin-bottom: 1rem;
+  color: var(--text-primary);
 }
 .question-detail__answers {
   margin-bottom: 2rem;
@@ -51,18 +56,22 @@
   font-size: 1.1rem;
   font-weight: bold;
   margin-bottom: 0.5rem;
+  color: var(--text-primary);
 }
 .question-detail__submit {
-  background: linear-gradient(to right, #f90, #fc0);
-  color: #fff;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+  color: white;
   border: none;
-  border-radius: 4px;
-  padding: 0.7rem 1.2rem;
+  border-radius: 8px;
+  padding: 0.8rem 1.5rem;
   font-weight: 600;
   cursor: pointer;
-  transition: box-shadow 0.2s;
+  transition: all 0.2s ease;
   margin-top: 1rem;
+  box-shadow: 0 2px 8px var(--shadow-light);
 }
 .question-detail__submit:hover {
-  box-shadow: 0 2px 8px rgba(255, 204, 0, 0.2);
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-color));
+  box-shadow: 0 4px 12px var(--shadow-medium);
+  transform: translateY(-1px);
 }
