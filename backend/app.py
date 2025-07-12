@@ -261,7 +261,8 @@ def get_questions():
     return jsonify(result)
 
 
-@app.route("/questions/<qid>", methods=["GET"])
+
+@app.route("/questions/<qid>", methods=["GET", "POST"])
 def get_question(qid):
     q = questions_col.find_one({"_id": ObjectId(qid)})
     if not q:
@@ -270,8 +271,42 @@ def get_question(qid):
     q['_id'] = str(q['_id'])
     q['user_id'] = str(q['user_id'])
 
+    # Default: no user context
+    user_id = None
+    user_votes = {}
+
+    # Try to get JWT from Authorization header or cookie for both GET and POST
+    jwt_token = None
+    # 1. Try cookie
+    jwt_token = request.cookies.get("jwt_token")
+    # 2. Try Authorization header
+    if not jwt_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            jwt_token = auth_header.split(" ", 1)[1]
+
+    if jwt_token:
+        try:
+            payload = jwt.decode(jwt_token, app.config["SECRET_KEY"], algorithms=["HS256"])
+            user_id = payload.get("user_id")
+        except Exception:
+            user_id = None
+
     # Fetch answers from the separate collection
     answers = list(answers_col.find({"question_id": str(q['_id'])}))
+    answer_ids = [str(a['_id']) for a in answers]
+
+    # If user is authenticated, get their votes for these answers only (not for the question itself)
+    user_upvoted = set()
+    user_downvoted = set()
+    if user_id:
+        user_votes_cursor = votes_col.find({"answer_id": {"$in": answer_ids}, "user_id": user_id})
+        for v in user_votes_cursor:
+            if v["vote_type"] == "up":
+                user_upvoted.add(v["answer_id"])
+            elif v["vote_type"] == "down":
+                user_downvoted.add(v["answer_id"])
+
     for a in answers:
         a['_id'] = str(a['_id'])
         a['user_id'] = str(a['user_id'])
@@ -281,6 +316,13 @@ def get_question(qid):
         upvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "up"})
         downvotes = votes_col.count_documents({"answer_id": a['_id'], "vote_type": "down"})
         a['votes'] = {"up": upvotes, "down": downvotes}
+        a['user_upvoted'] = False
+        a['user_downvoted']= False
+
+        # Mark if this user has upvoted/downvoted this answer
+        if user_id:
+            a['user_upvoted'] = a['_id'] in user_upvoted
+            a['user_downvoted'] = a['_id'] in user_downvoted
 
     q['answers'] = answers
     return jsonify(q)
