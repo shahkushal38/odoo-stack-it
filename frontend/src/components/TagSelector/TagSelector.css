@@ -1,0 +1,29 @@
+.tag-selector {
+  margin: 1rem 0;
+}
+.tag-selector__label {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+.tag-selector__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.tag-selector__tag {
+  background: #fff;
+  border: 2px solid #fc0;
+  color: #f90;
+  border-radius: 4px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.tag-selector__tag.selected {
+  background: linear-gradient(to right, #f90, #fc0);
+  color: #fff;
+  border: none;
+}
