@@ -15,7 +15,11 @@ load_dotenv()
 UPLOAD_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), "temp"))
 app = Flask(__name__)
 CORS(app)
-def oid(id): return ObjectId(id) 
+
+
+def oid(id):
+    return ObjectId(id)
+
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1000 * 1000  # 500 MB
@@ -31,12 +35,13 @@ if not db_uri:
 client = MongoClient(db_uri)
 db = client.get_database("StackIt")
 
-tags_col = db['tags']
-questions_col = db['questions']
-answers_col = db['answers']
-votes_col = db['votes']
-comments_col = db['comments']
-notifications_col = db['notifications']
+tags_col = db["tags"]
+questions_col = db["questions"]
+answers_col = db["answers"]
+votes_col = db["votes"]
+comments_col = db["comments"]
+notifications_col = db["notifications"]
+
 
 def token_required(f):
     @wraps(f)
@@ -115,144 +120,158 @@ def registerUser():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/questions', methods=['POST'])
+
+@app.route("/questions", methods=["POST"])
 def post_question():
-    data = request.json
+    data = request.get_json()
     question = {
-        "user_id": oid(data['user_id']),
-        "title": data['title'],
-        "description": data['description'],
-        "tags": [oid(t) for t in data.get('tags', [])],
-        "created_at": datetime.utcnow(),
+        "user_id": oid(data["user_id"]),
+        "title": data["title"],
+        "description": data["description"],
+        "tags": [oid(t) for t in data.get("tags", [])],
+        "created_at": datetime.now(),
         "updated_at": None,
-        "accepted_answer_id": None
+        "accepted_answer_id": None,
     }
     questions_col.insert_one(question)
     return jsonify({"message": "Question created"}), 201
 
-@app.route('/questions', methods=['GET'])
+
+@app.route("/questions", methods=["GET"])
 def get_questions():
     questions = list(questions_col.find())
     for q in questions:
-        q['_id'] = str(q['_id'])
-        q['user_id'] = str(q['user_id'])
-        q['tags'] = [str(t) for t in q.get('tags', [])]
+        q["_id"] = str(q["_id"])
+        q["user_id"] = str(q["user_id"])
+        q["tags"] = [str(t) for t in q.get("tags", [])]
     return jsonify(questions)
 
-@app.route('/questions/<qid>', methods=['GET'])
+
+@app.route("/questions/<qid>", methods=["GET"])
 def get_question(qid):
     q = questions_col.find_one({"_id": oid(qid)})
-    if not q: return jsonify({"error": "Not found"}), 404
-    q['_id'] = str(q['_id'])
-    q['user_id'] = str(q['user_id'])
-    q['tags'] = [str(t) for t in q.get('tags', [])]
+    if not q:
+        return jsonify({"error": "Not found"}), 404
+    q["_id"] = str(q["_id"])
+    q["user_id"] = str(q["user_id"])
+    q["tags"] = [str(t) for t in q.get("tags", [])]
     return jsonify(q)
+
 
 # ----------------------- ANSWERS -----------------------
 
-@app.route('/answers', methods=['POST'])
+
+@app.route("/answers", methods=["POST"])
 def post_answer():
-    data = request.json
+    data = request.get_json()
     answer = {
-        "question_id": oid(data['question_id']),
-        "user_id": oid(data['user_id']),
-        "content": data['content'],
+        "question_id": oid(data["question_id"]),
+        "user_id": oid(data["user_id"]),
+        "content": data["content"],
         "created_at": datetime.utcnow(),
-        "updated_at": None
+        "updated_at": None,
     }
     answers_col.insert_one(answer)
     return jsonify({"message": "Answer added"}), 201
 
-@app.route('/questions/<qid>/answers', methods=['GET'])
+
+@app.route("/questions/<qid>/answers", methods=["GET"])
 def get_answers(qid):
     ans = list(answers_col.find({"question_id": oid(qid)}))
     for a in ans:
-        a['_id'] = str(a['_id'])
-        a['question_id'] = str(a['question_id'])
-        a['user_id'] = str(a['user_id'])
+        a["_id"] = str(a["_id"])
+        a["question_id"] = str(a["question_id"])
+        a["user_id"] = str(a["user_id"])
     return jsonify(ans)
+
 
 # ----------------------- TAGS -----------------------
 
-@app.route('/tags', methods=['POST'])
+
+@app.route("/tags", methods=["POST"])
 def create_tag():
-    data = request.json
-    tag = {"name": data['name']}
+    data = request.get_json()
+    tag = {"name": data["name"]}
     tags_col.insert_one(tag)
     return jsonify({"message": "Tag created"})
 
-@app.route('/tags', methods=['GET'])
+
+@app.route("/tags", methods=["GET"])
 def get_tags():
     tags = list(tags_col.find())
-    for t in tags: t['_id'] = str(t['_id'])
+    for t in tags:
+        t["_id"] = str(t["_id"])
     return jsonify(tags)
+
 
 # ----------------------- VOTES -----------------------
 
-@app.route('/answers/<aid>/vote', methods=['POST'])
-def vote_answer(aid):
-    data = request.json
-    user_id = oid(data['user_id'])
-    vote_type = data['vote_type']  # 'up' or 'down'
 
-    existing_vote = votes_col.find_one({
-        "answer_id": oid(aid),
-        "user_id": user_id
-    })
+@app.route("/answers/<aid>/vote", methods=["POST"])
+def vote_answer(aid):
+    data = request.get_json()
+    user_id = oid(data["user_id"])
+    vote_type = data["vote_type"]  # 'up' or 'down'
+
+    existing_vote = votes_col.find_one({"answer_id": oid(aid), "user_id": user_id})
 
     if existing_vote:
         return jsonify({"error": "Already voted"}), 400
 
-    vote = {
-        "answer_id": oid(aid),
-        "user_id": user_id,
-        "vote_type": vote_type
-    }
+    vote = {"answer_id": oid(aid), "user_id": user_id, "vote_type": vote_type}
     votes_col.insert_one(vote)
     return jsonify({"message": "Vote recorded"}), 201
 
+
 # ----------------------- NOTIFICATIONS -----------------------
 
-@app.route('/notifications/<user_id>', methods=['GET'])
+
+@app.route("/notifications/<user_id>", methods=["GET"])
 def get_notifications(user_id):
     notes = list(notifications_col.find({"user_id": oid(user_id)}))
-    for n in notes: n['_id'] = str(n['_id'])
+    for n in notes:
+        n["_id"] = str(n["_id"])
     return jsonify(notes)
 
-@app.route('/notifications', methods=['POST'])
+
+@app.route("/notifications", methods=["POST"])
 def send_notification():
-    data = request.json
+    data = request.get_json()
     notification = {
-        "user_id": oid(data['user_id']),
-        "message": data['message'],
+        "user_id": oid(data["user_id"]),
+        "message": data["message"],
         "is_read": False,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.utcnow(),
     }
     notifications_col.insert_one(notification)
     return jsonify({"message": "Notification sent"}), 201
 
+
 # ----------------------- COMMENTS -----------------------
 
-@app.route('/comments', methods=['POST'])
+
+@app.route("/comments", methods=["POST"])
 def post_comment():
-    data = request.json
+    data = request.get_json()
     comment = {
-        "answer_id": oid(data['answer_id']),
-        "user_id": oid(data['user_id']),
-        "content": data['content'],
-        "created_at": datetime.utcnow()
+        "answer_id": oid(data["answer_id"]),
+        "user_id": oid(data["user_id"]),
+        "content": data["content"],
+        "created_at": datetime.utcnow(),
     }
     comments_col.insert_one(comment)
     return jsonify({"message": "Comment added"}), 201
 
-@app.route('/answers/<aid>/comments', methods=['GET'])
+
+@app.route("/answers/<aid>/comments", methods=["GET"])
 def get_comments(aid):
     comms = list(comments_col.find({"answer_id": oid(aid)}))
     for c in comms:
-        c['_id'] = str(c['_id'])
-        c['user_id'] = str(c['user_id'])
-        c['answer_id'] = str(c['answer_id'])
+        c["_id"] = str(c["_id"])
+        c["user_id"] = str(c["user_id"])
+        c["answer_id"] = str(c["answer_id"])
     return jsonify(comms)
+
 
 @app.route("/login", methods=["POST"])
 def login():
