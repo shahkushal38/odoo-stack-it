@@ -15,7 +15,11 @@ load_dotenv()
 UPLOAD_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), "temp"))
 app = Flask(__name__)
 CORS(app)
-def oid(id): return ObjectId(id) 
+
+
+def oid(id):
+    return ObjectId(id)
+
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1000 * 1000  # 500 MB
@@ -31,12 +35,13 @@ if not db_uri:
 client = MongoClient(db_uri)
 db = client.get_database("StackIt")
 
-tags_col = db['tags']
-questions_col = db['questions']
-answers_col = db['answers']
-votes_col = db['votes']
-comments_col = db['comments']
-notifications_col = db['notifications']
+tags_col = db["tags"]
+questions_col = db["questions"]
+answers_col = db["answers"]
+votes_col = db["votes"]
+comments_col = db["comments"]
+notifications_col = db["notifications"]
+
 
 def token_required(f):
     @wraps(f)
@@ -115,9 +120,10 @@ def registerUser():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/questions', methods=['POST'])
+
+@app.route("/questions", methods=["POST"])
 def post_question():
-    data = request.json
+    data = request.get_json()
     question = {
         "user_id": ObjectId(data['user_id']),
         "title": data['title'],
@@ -126,7 +132,7 @@ def post_question():
         "answers": [],  # initially empty
         "created_at": datetime.utcnow(),
         "updated_at": None,
-        "accepted_answer_id": None
+        "accepted_answer_id": None,
     }
     result = questions_col.insert_one(question)
     return jsonify({"message": "Question created", "question_id": str(result.inserted_id)}), 201
@@ -163,6 +169,7 @@ def get_question(qid):
     return jsonify(q)
 
 
+
 # ----------------------- ANSWERS -----------------------
 
 @app.route('/questions/<question_id>/answers', methods=['POST'])
@@ -191,70 +198,72 @@ def add_answer(question_id):
 
 # ----------------------- VOTES -----------------------
 
-@app.route('/answers/<aid>/vote', methods=['POST'])
-def vote_answer(aid):
-    data = request.json
-    user_id = oid(data['user_id'])
-    vote_type = data['vote_type']  # 'up' or 'down'
 
-    existing_vote = votes_col.find_one({
-        "answer_id": oid(aid),
-        "user_id": user_id
-    })
+@app.route("/answers/<aid>/vote", methods=["POST"])
+def vote_answer(aid):
+    data = request.get_json()
+    user_id = oid(data["user_id"])
+    vote_type = data["vote_type"]  # 'up' or 'down'
+
+    existing_vote = votes_col.find_one({"answer_id": oid(aid), "user_id": user_id})
 
     if existing_vote:
         return jsonify({"error": "Already voted"}), 400
 
-    vote = {
-        "answer_id": oid(aid),
-        "user_id": user_id,
-        "vote_type": vote_type
-    }
+    vote = {"answer_id": oid(aid), "user_id": user_id, "vote_type": vote_type}
     votes_col.insert_one(vote)
     return jsonify({"message": "Vote recorded"}), 201
 
+
 # ----------------------- NOTIFICATIONS -----------------------
 
-@app.route('/notifications/<user_id>', methods=['GET'])
+
+@app.route("/notifications/<user_id>", methods=["GET"])
 def get_notifications(user_id):
     notes = list(notifications_col.find({"user_id": oid(user_id)}))
-    for n in notes: n['_id'] = str(n['_id'])
+    for n in notes:
+        n["_id"] = str(n["_id"])
     return jsonify(notes)
 
-@app.route('/notifications', methods=['POST'])
+
+@app.route("/notifications", methods=["POST"])
 def send_notification():
-    data = request.json
+    data = request.get_json()
     notification = {
-        "user_id": oid(data['user_id']),
-        "message": data['message'],
+        "user_id": oid(data["user_id"]),
+        "message": data["message"],
         "is_read": False,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.utcnow(),
     }
     notifications_col.insert_one(notification)
     return jsonify({"message": "Notification sent"}), 201
 
+
 # ----------------------- COMMENTS -----------------------
 
-@app.route('/comments', methods=['POST'])
+
+@app.route("/comments", methods=["POST"])
 def post_comment():
-    data = request.json
+    data = request.get_json()
     comment = {
-        "answer_id": oid(data['answer_id']),
-        "user_id": oid(data['user_id']),
-        "content": data['content'],
-        "created_at": datetime.utcnow()
+        "answer_id": oid(data["answer_id"]),
+        "user_id": oid(data["user_id"]),
+        "content": data["content"],
+        "created_at": datetime.utcnow(),
     }
     comments_col.insert_one(comment)
     return jsonify({"message": "Comment added"}), 201
 
-@app.route('/answers/<aid>/comments', methods=['GET'])
+
+@app.route("/answers/<aid>/comments", methods=["GET"])
 def get_comments(aid):
     comms = list(comments_col.find({"answer_id": oid(aid)}))
     for c in comms:
-        c['_id'] = str(c['_id'])
-        c['user_id'] = str(c['user_id'])
-        c['answer_id'] = str(c['answer_id'])
+        c["_id"] = str(c["_id"])
+        c["user_id"] = str(c["user_id"])
+        c["answer_id"] = str(c["answer_id"])
     return jsonify(comms)
+
 
 @app.route("/login", methods=["POST"])
 def login():
